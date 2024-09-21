@@ -1,0 +1,3 @@
+- name: Transfer GitHub Project Issues into Google Sheets
+  uses: ViRGiL175/github-project-issue-to-sheets@v2.0.0
+            
