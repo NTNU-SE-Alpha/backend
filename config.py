@@ -17,3 +17,5 @@ class Config:
 
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = False
+    
+    UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER")

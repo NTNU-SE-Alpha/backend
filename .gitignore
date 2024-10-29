@@ -3,3 +3,7 @@
 
 # Migration file
 migrations/
+
+# __pycache
+__pycache__/
+
