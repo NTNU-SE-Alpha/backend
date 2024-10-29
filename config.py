@@ -19,4 +19,3 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = True
     
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER")
-    ALLOWED_EXTENSIONS = os.environ.get("ALLOWED_EXTENSIONS")
