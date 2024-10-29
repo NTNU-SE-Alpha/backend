@@ -1,11 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
 from models import db, Teacher, Student, Course
 from config import Config
 from marshmallow import ValidationError
 from schemas import LoginSchema, UserDataUpdateSchema
 from flask_migrate import Migrate
+import os
 
+ALLOWED_EXTENSIONS = {'pdf'}
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -243,6 +245,49 @@ def get_teacher_courses():
         app.logger.error(f"Error retrieving courses for teacher ID {user_id}: {e}")
         return jsonify({"message": "An error occurred while retrieving courses."}), 500
 
+# 檢查檔案類型是否允許
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# 儲存檔案
+def save_file(file):
+    if file and allowed_file(file.filename):
+        filename = file.filename
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return filename
+    return None
+
+
+# API: 上傳檔案處理
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    # 檢查是否有文件
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    file = request.files['file']
+
+    # 檢查是否有文件選擇
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    # 儲存檔案
+    filename = save_file(file)
+    if filename:
+        return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+    else:
+        return jsonify({'error': 'File type not allowed'}), 400
+
+# API 回傳以及顯示上傳的檔案:
+@app.route('/api/uploads/<filename>', methods=['GET'])
+def get_uploaded_file(filename):
+    # 確認檔案存在
+    if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], filename)):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    else:
+        return jsonify({'error': 'File not found'}), 404
 
 if __name__ == "__main__":
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
     app.run(debug=True)
