@@ -5,11 +5,14 @@ from config import Config
 from marshmallow import ValidationError
 from schemas import LoginSchema, UserDataUpdateSchema
 from flask_migrate import Migrate
+from flask_cors import CORS
+
 import os
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
 app = Flask(__name__)
+cors = CORS(app)
 app.config.from_object(Config)
 
 migrate = Migrate(app, db)
