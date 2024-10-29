@@ -243,6 +243,35 @@ def get_teacher_courses():
         app.logger.error(f"Error retrieving courses for teacher ID {user_id}: {e}")
         return jsonify({"message": "An error occurred while retrieving courses."}), 500
 
+@app.route('/getCourseInfo/<int:course_id>')
+# 取得課程資訊
+def get_course(course_id):
+    course = Course.query.get(course_id)
+    if course:
+        return course.to_dict()
+    else:
+        return {'error': 'Course not found'}, 404
+    
+
+@app.route('/getSections/<int:course_id>')
+# 取得每週課程資訊
+def get_course_sections(course_id):
+    course = Course.query.get(course_id)
+    if course:
+        # 檢查該學生是否為課程學生
+        if course.is_student(course_id):
+            sections = course.get_sections()
+            sections_data = [section.to_dict() for section in sections]
+            return jsonify({'sections':sections_data }), 200
+    else:
+        return {'error': 'Course not found'}, 404
+
+@app.route('/getStudents/<int:course_id>')
+def get_students(course_id):
+    course = Course.query.get(course_id)
+    if course:
+        students = [{'id': student.id, 'username': student.username, 'name': student.name} for student in course.students]
+        return jsonify({'students': students}), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
