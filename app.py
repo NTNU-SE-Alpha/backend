@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from models import db, Teacher, Student, Course
+from models import db, Teacher, Student, Course, ImageData
 from config import Config
 from marshmallow import ValidationError
 from schemas import LoginSchema, UserDataUpdateSchema
 from flask_migrate import Migrate
 from flask_cors import CORS
+from PIL import Image
+import io
 
 import os
 
@@ -323,3 +325,49 @@ if __name__ == "__main__":
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
     app.run(debug=True)
+
+@app.route('/upload/<int:course_id>', methods=['POST'])
+def upload_course_image(course_id):
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({"error": "Course not found"}), 404
+
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file found"}), 400
+    
+    image_file = request.files['image']
+
+    if not (image_file.content_type in ['image/jpeg', 'image/png']):
+        return jsonify({"error": "Invalid image type, only JPEG and PNG are allowed"}), 400
+    
+    file_size = len(image_file.read())
+    image_file.seek(0)
+    if image_file.content_type == 'image/jpeg' and not (20 * 1024 <= file_size <= 50 * 1024):
+        return jsonify({"error": "JPEG image size must be between 20-50 KB"}), 400
+    elif image_file.content_type == 'image/png' and not (50 * 1024 <= file_size <= 100 * 1024):
+        return jsonify({"error": "PNG image size must be between 50-100 KB"}), 400
+
+    image = Image.open(image_file)
+    if image.size != (269, 179):
+        return jsonify({"error": "Image dimensions must be 269x179 pixels"}), 400
+
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format=image.format)
+    img_byte_arr = img_byte_arr.getvalue()
+
+    new_image = ImageData(image=img_byte_arr)
+    db.session.add(new_image)
+    db.session.commit()
+
+    course.image_id = new_image.id
+    db.session.commit()
+
+    return jsonify({"success": "Image uploaded and linked to course successfully"}), 200
+
+@app.route('/get_image/<int:course_id>', methods=['GET'])
+def get_course_image(course_id):
+    course = Course.query.get(course_id)
+    if not course or not course.image:
+        return jsonify({"error": "Image not found"}), 404
+
+    return (course.image.image, 200, {'Content-Type': 'image/jpeg'})

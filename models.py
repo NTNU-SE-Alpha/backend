@@ -54,6 +54,7 @@ class Course(db.Model):
     weekday = db.Column(db.String(20), nullable=False) 
     semester = db.Column(db.String(20), nullable=False)
     archive = db.Column(db.Boolean, default=False, nullable=False)
+    image_id = db.Column(db.Integer, db.ForeignKey('image_data.id'))
 
     # 將資料轉為 dict
     def to_dict(self):
@@ -93,3 +94,7 @@ class Course_sections(db.Model):
             'publish_date': self.publish_date.isoformat(),
         }
 
+class ImageData(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    image = db.Column(db.LargeBinary, nullable=False)
+    course = db.relationship('Courses', backref=db.backref('image', uselist=False))
