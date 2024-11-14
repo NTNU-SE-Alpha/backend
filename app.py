@@ -3,9 +3,11 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from models import db, Teacher, Student, Course
 from config import Config
 from marshmallow import ValidationError
-from schemas import LoginSchema, UserDataUpdateSchema
+from schemas import LoginSchema, UserDataUpdateSchema, RegisterSchema
 from flask_migrate import Migrate
 from flask_cors import CORS
+
+from werkzeug.security import generate_password_hash
 
 import os
 
@@ -318,6 +320,98 @@ def get_uploaded_file(filename):
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     else:
         return jsonify({'error': 'File not found'}), 404
+
+@app.route('/register', methods=["POST"])
+def register():
+    data = request.get_json()
+
+    # 檢查必要填寫的欄位
+    if not data or "username" not in data or "password" not in data or "user_type" not in data:
+        return jsonify({"message": "Username, password, and user_type are required."}), 400
+
+    schema = RegisterSchema()
+    try:
+        validated_data = schema.load(data)
+
+        # 檢查 username 是否重複
+        teacher_check = Teacher.query.filter_by(username=validated_data["username"]).first()
+        student_check = Student.query.filter_by(username=validated_data["username"]).first()
+
+        if teacher_check or student_check:
+            return jsonify({"message": "Username already exists."}), 400
+
+        # 檢查密碼是否符合規範 (長度不小於6)
+        if len(validated_data["password"]) < 6:
+            return jsonify({"message": "Password must be at least 8 characters long."}), 400
+
+        # 密碼加密
+        hashed_password = generate_password_hash(validated_data["password"])
+
+        # 儲存使用者至資料庫
+        if data["user_type"] == "teacher":
+            if validated_data['group']:
+                return jsonify({"message": "only user_type is student have group."}), 400
+            # 檢查是否有提供教師的名字
+            if not validated_data.get("name"):
+                return jsonify({"message": "Teacher name is required."}), 400
+            
+            # 檢查是否有提供有效的 course 名稱
+            course_name = data.get("course")
+            if not course_name:
+                return jsonify({"message": "Course name is required for students."}), 400
+            
+            # 從 Course 表中找到對應的課程
+            course = Course.query.filter_by(name=course_name).first()
+            if not course:
+                return jsonify({"message": "Course not found."}), 400
+
+            # 創建教師帳戶並設置密碼
+            new_user = Teacher(
+                username=validated_data["username"],
+                name=validated_data["name"],
+                password_hash=hashed_password
+            )
+
+            # 若course先存在, 老師選課程時自動加入
+            if "course" in validated_data:
+                course_name = validated_data["course"]
+                course = Course.query.filter_by(name=course_name).first()
+                if course:
+                    course.teacher_id = new_user.id
+
+        elif data["user_type"] == "student":
+            # 檢查是否有提供有效的 course 名稱
+            course_name = data.get("course")
+            if not course_name:
+                return jsonify({"message": "Course name is required for students."}), 400
+
+            # 從 Course 表中找到對應的課程
+            course = Course.query.filter_by(name=course_name).first()
+            if not course:
+                return jsonify({"message": "Course not found."}), 400
+
+            # 創建學生帳戶並設置密碼
+            new_user = Student(
+                username=validated_data["username"],
+                name=validated_data.get("name"),  # 假設學生有名字這個欄位
+                group_number=validated_data.get("group", 1),  # 默認組號為 1
+                password_hash=hashed_password,
+                course=course.id  # 設置為 Course 表的 id
+            )
+        else:
+            return jsonify({"message": "Invalid user type."}), 400
+
+        db.session.add(new_user)
+        db.session.commit()
+
+        return jsonify({"message": "User registered successfully."}), 201
+
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": str(e)}), 500
+
 
 if __name__ == "__main__":
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
