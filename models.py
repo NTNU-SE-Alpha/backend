@@ -55,6 +55,7 @@ class Course(db.Model):
     semester = db.Column(db.String(20), nullable=False)
     archive = db.Column(db.Boolean, default=False, nullable=False)
     image_id = db.Column(db.Integer, db.ForeignKey('image_data.id'))
+    is_favorite = db.Column(db.Boolean, default=False)
 
     # 將資料轉為 dict
     def to_dict(self):

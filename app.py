@@ -371,3 +371,41 @@ def get_course_image(course_id):
         return jsonify({"error": "Image not found"}), 404
 
     return (course.image.image, 200, {'Content-Type': 'image/jpeg'})
+
+@app.route('/add_favorite/<int:course_id>')
+@jwt_required()
+def add_favorite(course_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+        course = Course.query.filter_by(id=course_id, teacher_id=user.id).first()
+        if not course:
+            return jsonify({"error": "Course not found or not owned by teacher"}), 404
+        course.is_favorite = True
+        db.session.commit()
+        return jsonify({"success": "Course marked as favorite"}), 200
+
+@app.route('/favorites', methods=['GET'])
+@jwt_required()
+def get_favorites():
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+        favorites = Course.query.filter_by(teacher_id=user.id, is_favorite=True).all()
+        favorite_list = []
+        for course in favorites:
+            c = get_course(course.id)
+            favorite_list.append(c)
+        return jsonify({"favorites": favorite_list}), 200
