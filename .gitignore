@@ -4,6 +4,9 @@
 # Migration file
 migrations/
 
-# __pycache
+# venv
 __pycache__/
+venv/
 
+
+AI/saved_data/
