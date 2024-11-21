@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
 from config import Config
 from marshmallow import ValidationError
-from schemas import LoginSchema, UserDataUpdateSchema, CourseUpdateSchema, RegisterSchema
+from schemas import LoginSchema, UserDataUpdateSchema, RegisterSchema
 from flask_migrate import Migrate
 from flask_cors import CORS
 from PIL import Image
