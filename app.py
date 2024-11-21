@@ -1,16 +1,14 @@
-from flask import Flask, request, jsonify, send_from_directory
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from config import Config
-from marshmallow import ValidationError
-from schemas import LoginSchema, UserDataUpdateSchema, RegisterSchema
-from flask_migrate import Migrate
-from flask_cors import CORS
-from PIL import Image
+import hashlib
 import io
+import os
 
+from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required
+from flask_migrate import Migrate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
-
-
+from marshmallow import ValidationError
+from PIL import Image
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -19,17 +17,15 @@ from config import Config
 from models import (
     Conversation,
     Course,
+    ImageData,
     Student,
+    StudentFiles,
     Teacher,
     TeacherFaiss,
     TeacherFiles,
-    StudentFiles,
-    ImageData,
     db,
 )
-
-import os
-import hashlib
+from schemas import LoginSchema, RegisterSchema, UserDataUpdateSchema
 
 ALLOWED_EXTENSIONS = {'pdf'}
 OTHER_ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp', 'doc', 'docx', 'txt'}
