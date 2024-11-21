@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from models import db, Teacher, Student, Course
+from models import db, Teacher, Student, Course, ImageData
 from config import Config
 from marshmallow import ValidationError
-from schemas import LoginSchema, UserDataUpdateSchema, RegisterSchema
+from schemas import LoginSchema, UserDataUpdateSchema, CourseUpdateSchema, RegisterSchema
 from flask_migrate import Migrate
 from flask_cors import CORS
+from PIL import Image
+import io
 
 from werkzeug.security import generate_password_hash
 
@@ -417,3 +419,137 @@ if __name__ == "__main__":
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
     app.run(debug=True)
+
+@app.route('/upload/<int:course_id>', methods=['POST'])
+def upload_course_image(course_id):
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({"error": "Course not found"}), 404
+    
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file found"}), 400
+    
+    image_file = request.files['image']
+
+    if image_file.content_type not in ['image/jpeg', 'image/png']:
+        return jsonify({"error": "Invalid image type, only JPEG and PNG are allowed"}), 400
+    
+    file_size = len(image_file.read())
+    image_file.seek(0)
+    if image_file.content_type == 'image/jpeg' and not (20 * 1024 <= file_size <= 50 * 1024):
+        return jsonify({"error": "JPEG image size must be between 20-50 KB"}), 400
+    elif image_file.content_type == 'image/png' and not (50 * 1024 <= file_size <= 100 * 1024):
+        return jsonify({"error": "PNG image size must be between 50-100 KB"}), 400
+    
+    image = Image.open(image_file)
+    if image.size != (269, 179):
+        return jsonify({"error": "Image dimensions must be 269x179 pixels"}), 400
+    
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format=image.format)
+    img_byte_arr = img_byte_arr.getvalue()
+    
+    new_image = ImageData(image=img_byte_arr)
+    db.session.add(new_image)
+    db.session.commit()
+    
+    course.image_id = new_image.id
+    db.session.commit()
+    
+    return jsonify({"success": "Image uploaded and linked to course successfully"}), 200
+
+@app.route('/get_image/<int:course_id>', methods=['GET'])
+def get_course_image(course_id):
+    course = Course.query.get(course_id)
+    if not course or not course.image:
+        return jsonify({"error": "Image not found"}), 404
+    
+    return (course.image.image, 200, {'Content-Type': 'image/jpeg'})
+
+@app.route('/add_favorite/<int:course_id>')
+@jwt_required()
+def add_favorite(course_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+        course = Course.query.filter_by(id=course_id, teacher_id=user.id).first()
+        if not course:
+            return jsonify({"error": "Course not found or not owned by teacher"}), 404
+        course.is_favorite = True
+        db.session.commit()
+        return jsonify({"success": "Course marked as favorite"}), 200
+
+@app.route('/favorites', methods=['GET'])
+@jwt_required()
+def get_favorites():
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+        favorites = Course.query.filter_by(teacher_id=user.id, is_favorite=True).all()
+        favorite_list = []
+        for course in favorites:
+            c = get_course(course.id)
+            favorite_list.append(c)
+        return jsonify({"favorites": favorite_list}), 200
+
+@app.route('/courses/<int:course_id>', methods=["PUT"])
+# 處理教師變更課程資料
+@jwt_required()
+def update_course_data():
+    # 從 JWT Token 中取得資料(claims)
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+
+    # 檢查使用者是否為老師
+    if user_type != "teacher":
+        return jsonify({"message": "Access forbidden: Teachers only."}), 403
+    
+    # 檢查課程是否存在
+    course = Course.query.get("course_id")
+    if not course:
+        return jsonify({"message": "Course not found."}), 404
+
+    # 檢查該課程是否屬於該老師
+    if course.teacher_id != user_id:
+        return jsonify({"message": "Access forbidden: Only the owner teacher can edit this course."}), 403
+    
+    data = request.get_json()
+
+    #更新課程資訊
+    if 'name' in data:
+        course.name = data['name']
+    if 'teacher_id' in data:
+        course.teacher_id = data['teacher_id']
+    if 'weekday' in data:
+        course.weekday = data['weekday']
+    if 'semester' in data:
+        course.semester = data['semester']
+    if 'archive' in data:
+        course.archive = data['archive']
+    if 'image_id' in data:
+        course.image_id = data['image_id']
+    if 'is_favorite' in data:
+        course.is_favorite = data['is_favorite']
+    
+    try:
+        db.session.commit()
+        
+        return jsonify({"message": "Course updated successfully"}), 200
+    
+    except Exception as e:
+        app.logger.error(f"Error updating course: {e}")
+        db.session.rollback()
+        return jsonify({"message": "An error occurred while updating the course"}), 500
