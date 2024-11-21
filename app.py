@@ -524,7 +524,6 @@ def chat(conversation_uuid):
             db.session.commit()
 
         aiteacher.system_context = f"""您是一位AI教學助手。
-以下是課程內容的摘要：{file_content[:1000]}...
 請基於上述內容來回答問題。如果需要引入新的例子或故事，請確保與原始課程內容保持關聯。"""
 
         relevant_context = aiteacher.search_rag(user_input, index, sentences)

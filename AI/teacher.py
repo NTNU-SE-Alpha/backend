@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import re
 
 import faiss
 import fitz  # PyMuPDF
@@ -29,7 +30,7 @@ class AITeacher:
         self.llm = ChatOpenAI(
             api_key=self.openai_api_key, max_tokens=4096, model_name="gpt-4o"
         )
-        self.model = SentenceTransformer("paraphrase-mpnet-base-v2")
+        self.model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
         self.system_context = None
 
     def summarize_text(self, text):
@@ -95,7 +96,8 @@ class AITeacher:
     def build_faiss_index(self, text, save_name=None):
         try:
             # 分割句子並移除空白行
-            sentences = [s.strip() for s in text.split("\n") if s.strip()]
+            sentences = re.split('(?<=[。！？])', text)
+            sentences = [s.strip() for s in sentences if s.strip()]
             print(f"總句子數: {len(sentences)}")  # 調試信息
 
             if not sentences:
@@ -179,7 +181,7 @@ class AITeacher:
             print(f"載入 FAISS 索引時發生錯誤: {e}")
             return None, None
 
-    def search_rag(self, query, index, sentences, top_k=5):
+    def search_rag(self, query, index, sentences, top_k=10):
         try:
             query_embedding = self.model.encode([query])
             distances, indices = index.search(query_embedding, top_k)
