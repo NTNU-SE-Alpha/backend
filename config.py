@@ -17,4 +17,10 @@ class Config:
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = False
     
+    JSON_AS_ASCII = False
+    JSONIFY_MIMETYPE = "application/json;charset=utf-8"
+    
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER")
+    
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    

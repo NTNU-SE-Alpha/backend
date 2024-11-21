@@ -1,6 +1,7 @@
-from app import app, db
-from models import Teacher, Student, Course, Course_sections
 from datetime import datetime
+
+from app import app, db
+from models import Course, Course_sections, Student, Teacher, TeacherFiles
 
 
 def init_db():
@@ -64,6 +65,14 @@ def init_db():
             publish_date=datetime(2024, 9, 30, 12, 0),
         )
 
+        teachfile1 = TeacherFiles(
+            teacher=1,
+            # class_id=1,
+            name="teaching_resources",
+            path="uploads/teaching_resources.pdf",
+            checksum="0ad30feac1b9fd248d678798114fc5412b9dd6460e9b1e64280f67528d675771",
+        )
+
         db.session.add_all(
             [
                 teacher1,
@@ -75,6 +84,7 @@ def init_db():
                 course3,
                 section1,
                 section2,
+                teachfile1
             ]
         )
 
