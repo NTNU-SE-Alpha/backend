@@ -1,15 +1,21 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from models import db, Teacher, Student, Course
+from models import db, Teacher, Student, Course, TeacherFiles, StudentFiles
 from config import Config
 from marshmallow import ValidationError
 from schemas import LoginSchema, UserDataUpdateSchema
 from flask_migrate import Migrate
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
+
 
 import os
+import hashlib
+
 
 ALLOWED_EXTENSIONS = {'pdf'}
+OTHER_ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp', 'doc', 'docx', 'txt'}
+
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -277,6 +283,7 @@ def get_students(course_id):
     if course:
         students = [{'id': student.id, 'username': student.username, 'name': student.name} for student in course.students]
         return jsonify({'students': students}), 200
+
 # 檢查檔案類型是否允許
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -290,9 +297,54 @@ def save_file(file):
     return None
 
 
-# API: 上傳檔案處理
-@app.route('/api/upload', methods=['POST'])
-def upload_file():
+# function: checksum & 儲存資訊到資料庫
+def generate_checksum(filepath):
+    # 計算檔案的 SHA256 
+    sha256_hash = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+# 學生和教師的資訊分別存到 teacher_files 或 student_files (有更新 models.py)
+def save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
+    checksum = generate_checksum(filepath)
+
+    if uploader_type == "teacher":
+        new_file = TeacherFiles(
+            class_id=class_id,
+            teacher=uploader_id,
+            name=filename,
+            path=filepath,
+            checksum=checksum
+        )
+    elif uploader_type == "student":
+        new_file = StudentFiles(
+            class_id=class_id,
+            student=uploader_id,
+            name=filename,
+            path=filepath,
+            checksum=checksum
+        )
+    else:
+        return False
+
+    db.session.add(new_file)
+    db.session.commit()
+    return True
+
+# API: 上傳檔案處理 (更新: 將資訊存入資料庫)
+@app.route('/api/upload_pdf', methods=['POST'])
+@jwt_required()
+def upload_pdf():
+    claims = get_jwt()
+    uploader_id = claims.get("user_id")
+    uploader_type = claims.get("user_type")
+    course_id = request.args.get("course_id")
+
+    if not course_id:
+        return jsonify({'error': 'Course ID is required'}), 400
+
     # 檢查是否有文件
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -303,12 +355,92 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
+    # 檢查檔案是否為 PDF
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Only PDF files are allowed'}), 400
+
     # 儲存檔案
-    filename = save_file(file)
+    filename, filepath = save_file(file, ALLOWED_EXTENSIONS)
     if filename:
-        return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+        # 呼叫 generate_checksum()
+        checksum = generate_checksum(filepath)
+        
+        # 呼叫 save_file_info() 儲存資訊進資料庫中
+        if save_file_info(uploader_id, uploader_type, course_id, filename, filepath, checksum):
+            return jsonify({'message': 'PDF file uploaded successfully', 'filename': filename}), 200
+        else:
+            return jsonify({'error': 'Failed to save file info'}), 500
     else:
         return jsonify({'error': 'File type not allowed'}), 400
+
+# 新增其他檔案類型的上傳功能
+@app.route('/api/upload_various_file', methods=['POST'])
+@jwt_required()
+def upload_various_file():
+    claims = get_jwt()
+    uploader_id = claims.get("user_id")
+    uploader_type = claims.get("user_type")
+    class_id = request.form.get("class_id")  # 修改這裡，從 course_id 改為 class_id
+
+    if not class_id:
+        return jsonify({'error': 'Class ID is required'}), 400
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    filename, filepath = save_file(file, OTHER_ALLOWED_EXTENSIONS)
+    if filename:
+        # 儲存檔案資訊到資料庫
+        if save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
+            return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+        else:
+            return jsonify({'error': 'Failed to save file info'}), 500
+    return jsonify({'error': 'File type not allowed'}), 400
+
+# secure_filename:
+def save_file(file, allowed_extensions):
+    if file and '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions:
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        counter = 1
+        while os.path.exists(file_path):
+            name, ext = os.path.splitext(filename)
+            filename = f"{name}_{counter}{ext}"
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            counter += 1
+        file.save(file_path)
+        return filename, file_path
+    return None, None
+    
+# 下載檔案api : api/download/ 仍在 debug 中
+@app.route('/api/download/<filename>', methods=['GET'])
+@jwt_required()
+def download_file(filename):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    # class_id = request.args.get("class_id")
+    class_id = request.form.get("class_id")
+
+    if not class_id:
+        return jsonify({'error': 'Class ID is required'}), 400
+
+    if user_type == "teacher":
+        file_record = TeacherFiles.query.filter_by(name=filename, class_id=class_id, teacher=user_id).first()
+    elif user_type == "student":
+        file_record = StudentFiles.query.filter_by(name=filename, class_id=class_id, student=user_id).first()
+    else:
+        return jsonify({'error': 'Access forbidden'}), 403
+
+    if not file_record or not os.path.exists(file_record.path):
+        return jsonify({'error': 'File not found'}), 404
+
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 # API 回傳以及顯示上傳的檔案:
 @app.route('/api/uploads/<filename>', methods=['GET'])
@@ -317,6 +449,7 @@ def get_uploaded_file(filename):
     if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], filename)):
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     else:
+        # Not Found: 404
         return jsonify({'error': 'File not found'}), 404
 
 if __name__ == "__main__":
