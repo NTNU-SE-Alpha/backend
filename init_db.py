@@ -1,5 +1,5 @@
 from app import app, db
-from models import Teacher, Student, Course, Course_sections, Assignments, AssignmentFiles
+from models import Teacher, Student, Course, Course_sections, Assignments, AssignmentFiles, Submissions, SubmissionFiles
 from datetime import datetime
 
 
@@ -94,6 +94,38 @@ def init_db():
             file_url="uploads/Circuit_Design_Examples.zip",
         )
         
+        # 新增作業提交資料
+        submission1 = Submissions(
+            assignment_id=1,
+            student_id=1,
+            description="我的作業報告，包含第 1-3 章摘要。",
+            submitted_at=datetime(2024, 10, 14, 15, 30),
+            score=90.5,
+            feedback="報告清晰且有結構。",
+        )
+
+        submission2 = Submissions(
+            assignment_id=2,
+            student_id=2,
+            description="我的電子元件模擬作業，包含詳細設計。",
+            submitted_at=datetime(2024, 10, 19, 14, 15),
+            score=85.0,
+            feedback="設計良好，但需要更詳細的模擬數據。",
+        )
+
+        # 新增作業提交的附件
+        submission_file1 = SubmissionFiles(
+            submission_id=1,
+            file_url="uploads/Submission1_Report.pdf",
+            uploaded_at=datetime(2024, 10, 14, 15, 30),
+        )
+
+        submission_file2 = SubmissionFiles(
+            submission_id=2,
+            file_url="uploads/Submission2_Circuit.zip",
+            uploaded_at=datetime(2024, 10, 19, 14, 15),
+        )
+        
         #先生成id
         db.session.add_all(
             [
@@ -116,7 +148,11 @@ def init_db():
                 assignment1,
                 assignment2,
                 assignment_file1,
-                assignment_file2
+                assignment_file2,
+                submission1,
+                submission2,
+                submission_file1,
+                submission_file2
             ]
         )
 

@@ -120,4 +120,31 @@ class AssignmentFiles(db.Model):
     file_id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # 檔案 ID
     assignment_id = db.Column(db.Integer, db.ForeignKey("Assignments.assignment_id"), nullable=False)  # 對應的作業 ID
     file_url = db.Column(db.String(255), nullable=False)  # 檔案存放路徑或 URL
+    
+# Submissions table (學生作業提交表)
+class Submissions(db.Model):
+    __tablename__ = "Submissions"
+    submission_id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # 提交的唯一識別碼
+    assignment_id = db.Column(db.Integer, db.ForeignKey("Assignments.assignment_id"), nullable=False)  # 關聯的作業 ID
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)  # 提交作業的學生 ID
+    description = db.Column(db.Text, nullable=True)  # 繳交描述
+    submitted_at = db.Column(db.DateTime, nullable=False, default=datetime.now)  # 提交的時間
+    score = db.Column(db.Float, nullable=True)  # 作業得分
+    feedback = db.Column(db.Text, nullable=True)  # 評語
+
+    # 與 SubmissionFiles 的一對多關係
+    files = db.relationship(
+        "SubmissionFiles",
+        backref="submission",  # 在 SubmissionFiles 中建立 `submission` 屬性
+        cascade="all, delete-orphan",  # 自動處理相關檔案刪除
+        lazy=True
+    )
+
+# SubmissionFiles table (提交檔案表)
+class SubmissionFiles(db.Model):
+    __tablename__ = "SubmissionFiles"
+    file_id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # 檔案 ID
+    submission_id = db.Column(db.Integer, db.ForeignKey("Submissions.submission_id"), nullable=False)  # 關聯的提交 ID
+    file_url = db.Column(db.String(255), nullable=False)  # 檔案存放路徑或 URL
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.now)  # 附件上傳時間
 
