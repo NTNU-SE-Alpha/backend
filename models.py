@@ -1,7 +1,8 @@
+import uuid
+from datetime import datetime
+
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
-from datetime import datetime
-import uuid
 
 db = SQLAlchemy()
 
@@ -58,7 +59,6 @@ class Course(db.Model):
     weekday = db.Column(db.String(20), nullable=False)
     semester = db.Column(db.String(20), nullable=False)
     archive = db.Column(db.Boolean, default=False, nullable=False)
-    image_id = db.Column(db.Integer, db.ForeignKey('image_data.id'))
     is_favorite = db.Column(db.Boolean, default=False)
 
     # 將資料轉為 dict
@@ -106,11 +106,6 @@ class Course_sections(db.Model):
             "end_date": self.end_date.isoformat(),
             "publish_date": self.publish_date.isoformat(),
         }
-
-class ImageData(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    image = db.Column(db.LargeBinary, nullable=False)
-    course = db.relationship('Courses', backref=db.backref('image', uselist=False))
     
 class Conversation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -119,7 +114,7 @@ class Conversation(db.Model):
     )
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    summary = db.Column(db.Text, nullable=True)  # New field to store the summary
+    summary = db.Column(db.Text, nullable=True)
 
 
 class Message(db.Model):
@@ -127,7 +122,7 @@ class Message(db.Model):
     conversation_id = db.Column(
         db.Integer, db.ForeignKey("conversation.id"), nullable=False
     )
-    sender = db.Column(db.String(10), nullable=False)  # 'user' or 'ai'
+    sender = db.Column(db.String(10), nullable=False)
     message = db.Column(db.Text, nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow)
 

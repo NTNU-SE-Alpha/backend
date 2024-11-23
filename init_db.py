@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from app import app, db
+
 from models import Course, Course_sections, Student, Teacher, TeacherFiles
 
 
@@ -23,10 +24,16 @@ def init_db():
             weekday="Wed",
             semester="113-1",
             archive=False,
+            is_favorite=False
         )
 
         course2 = Course(
-            name="電子學", teacher_id=2, weekday="Thur", semester="113-1", archive=False
+            name="電子學", 
+            teacher_id=2,
+            weekday="Thur", 
+            semester="113-1",
+            archive=False,
+            is_favorite=False
         )
 
         course3 = Course(
@@ -67,7 +74,7 @@ def init_db():
 
         teachfile1 = TeacherFiles(
             teacher=1,
-            # class_id=1,
+            class_id=1,
             name="teaching_resources",
             path="uploads/teaching_resources.pdf",
             checksum="0ad30feac1b9fd248d678798114fc5412b9dd6460e9b1e64280f67528d675771",
@@ -84,10 +91,12 @@ def init_db():
                 course3,
                 section1,
                 section2,
-                teachfile1
             ]
         )
 
+        db.session.commit()
+        
+        db.session.add(teachfile1)
         db.session.commit()
         print("Test data inserted into the database.")
 
