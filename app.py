@@ -23,6 +23,7 @@ from models import (
     Teacher,
     TeacherFaiss,
     TeacherFiles,
+    Course_sections,
     db,
 )
 
@@ -438,7 +439,7 @@ def download_file(file_id):
 
     return send_file(file_record.path, as_attachment=True)
 
-@app.route("/start_conversation", methods=["GET"])
+@app.route("/start_conversation", methods=["POST"])
 @jwt_required()
 def start_conversation():
     claims = get_jwt()
@@ -452,7 +453,9 @@ def start_conversation():
         if not user:
             return jsonify({"message": "User not found."}), 404
 
-    new_conversation = Conversation(teacher_id=user_id)
+    course_id = request.form.get("course_id")
+    course_section=request.form.get("course_section")
+    new_conversation = Conversation(teacher_id=user_id, course_id=course_id, course_section=course_section)
     db.session.add(new_conversation)
     db.session.commit()
     return jsonify({"uuid": new_conversation.uuid})
@@ -623,17 +626,21 @@ def list_conversations():
             return jsonify({"message": "User not found."}), 404
 
     conversations = Conversation.query.filter_by(teacher_id=user_id).all()
-
-    conversation_list = [
-        {
-            "uuid": conversation.uuid,
-            "summary": conversation.summary
-            if conversation.summary
-            else "No summary available",
-            "created_at": conversation.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        for conversation in conversations
-    ]
+    conversation_list = []
+    for conversation in conversations:
+        course=Course.query.filter_by(id=conversation.course_id).first()
+        course_section=Course_sections.query.filter_by(course=conversation.course_id, sequence=conversation.course_section).first()
+        conversation_list.append(
+            {
+                "uuid": conversation.uuid,
+                "course_name": course.name,
+                "course_section": course_section.name,
+                "summary": conversation.summary
+                if conversation.summary
+                else "No summary available",
+                "created_at": conversation.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
 
     return jsonify({"conversations": conversation_list})
 

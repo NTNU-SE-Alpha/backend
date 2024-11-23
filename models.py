@@ -53,13 +53,13 @@ class Course(db.Model):
     name = db.Column(db.String(120), nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
     students = db.relationship("Student", backref=db.backref("courses", lazy=True))
-    sections = db.relationship(
-        "Course_sections", backref=db.backref("courses", lazy=True)
-    )
+    sections = db.relationship("Course_sections", backref=db.backref("courses", lazy=True))
     weekday = db.Column(db.String(20), nullable=False)
     semester = db.Column(db.String(20), nullable=False)
     archive = db.Column(db.Boolean, default=False, nullable=False)
     is_favorite = db.Column(db.Boolean, default=False)
+    
+    conversations = db.relationship("Conversation", backref="course", lazy=True)
 
     # 將資料轉為 dict
     def to_dict(self):
@@ -112,6 +112,8 @@ class Conversation(db.Model):
     uuid = db.Column(
         db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
     )
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    course_section=db.Column(db.Integer, nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     summary = db.Column(db.Text, nullable=True)
