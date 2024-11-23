@@ -115,7 +115,7 @@ class Conversation(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
     course_section=db.Column(db.Integer, nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now())
     summary = db.Column(db.Text, nullable=True)
 
 
@@ -126,7 +126,7 @@ class Message(db.Model):
     )
     sender = db.Column(db.String(10), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, default=datetime.now())
 
     conversation = db.relationship(
         "Conversation", backref=db.backref("messages", lazy=True)
