@@ -4,7 +4,7 @@ import os
 
 from AI.teacher import AITeacher
 from config import Config
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required
 from flask_migrate import Migrate
@@ -325,7 +325,7 @@ def save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
 
     db.session.add(new_file)
     db.session.commit()
-    return True
+    return new_file.id
 
 # API: 上傳檔案處理 (更新: 將資訊存入資料庫)
 @app.route('/api/upload_pdf', methods=['POST'])
@@ -334,7 +334,7 @@ def upload_pdf():
     claims = get_jwt()
     uploader_id = claims.get("user_id")
     uploader_type = claims.get("user_type")
-    course_id = request.args.get("course_id")
+    course_id = request.form.get("course_id")
 
     if not course_id:
         return jsonify({'error': 'Course ID is required'}), 400
@@ -357,11 +357,12 @@ def upload_pdf():
     filename, filepath = save_file(file, ALLOWED_EXTENSIONS)
     if filename:
         # 呼叫 generate_checksum()
-        checksum = generate_checksum(filepath)
+        # checksum = generate_checksum(filepath)
         
         # 呼叫 save_file_info() 儲存資訊進資料庫中
-        if save_file_info(uploader_id, uploader_type, course_id, filename, filepath, checksum):
-            return jsonify({'message': 'PDF file uploaded successfully', 'filename': filename}), 200
+        file_id = save_file_info(uploader_id, uploader_type, course_id, filename, filepath)
+        if file_id:
+            return jsonify({'message': 'PDF file uploaded successfully', 'filename': filename, 'file_id': file_id}), 200
         else:
             return jsonify({'error': 'Failed to save file info'}), 500
     else:
@@ -413,29 +414,29 @@ def save_file(file, allowed_extensions):
     return None, None
     
 # 下載檔案api : api/download/ 仍在 debug 中
-@app.route('/api/download/<filename>', methods=['GET'])
+@app.route('/api/download/<int:file_id>', methods=['GET'])
 @jwt_required()
-def download_file(filename):
+def download_file(file_id):
     claims = get_jwt()
     user_type = claims.get("user_type")
     user_id = claims.get("user_id")
     # class_id = request.args.get("class_id")
-    class_id = request.form.get("class_id")
+    course_id = request.form.get("course_id")
 
-    if not class_id:
+    if not course_id:
         return jsonify({'error': 'Class ID is required'}), 400
 
     if user_type == "teacher":
-        file_record = TeacherFiles.query.filter_by(name=filename, class_id=class_id, teacher=user_id).first()
+        file_record = TeacherFiles.query.filter_by(id=file_id, class_id=course_id, teacher=user_id).first()
     elif user_type == "student":
-        file_record = StudentFiles.query.filter_by(name=filename, class_id=class_id, student=user_id).first()
+        file_record = StudentFiles.query.filter_by(id=file_id, class_id=course_id, student=user_id).first()
     else:
         return jsonify({'error': 'Access forbidden'}), 403
 
     if not file_record or not os.path.exists(file_record.path):
         return jsonify({'error': 'File not found'}), 404
 
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    return send_file(file_record.path, as_attachment=True)
 
 @app.route("/start_conversation", methods=["GET"])
 @jwt_required()
