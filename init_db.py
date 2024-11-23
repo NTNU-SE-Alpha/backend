@@ -100,8 +100,6 @@ def init_db():
             student_id=1,
             description="我的作業報告，包含第 1-3 章摘要。",
             submitted_at=datetime(2024, 10, 14, 15, 30),
-            score=90.5,
-            feedback="報告清晰且有結構。",
         )
 
         submission2 = Submissions(
@@ -109,8 +107,6 @@ def init_db():
             student_id=2,
             description="我的電子元件模擬作業，包含詳細設計。",
             submitted_at=datetime(2024, 10, 19, 14, 15),
-            score=85.0,
-            feedback="設計良好，但需要更詳細的模擬數據。",
         )
 
         # 新增作業提交的附件

@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from models import db, Teacher, Student, Course, Assignments, AssignmentFiles
+from models import db, Teacher, Student, Course, Assignments, AssignmentFiles, Submissions
 from config import Config
 from marshmallow import ValidationError
 from schemas import LoginSchema, UserDataUpdateSchema, RegisterSchema
@@ -553,6 +553,100 @@ def update_assignment(assignment_id):
         return jsonify({"message": f"Error updating assignment: {str(e)}"}), 500
 
     return jsonify({"message": "Assignment updated successfully."}), 200
+
+# 首次評分
+@app.route("/submissions/<int:submission_id>/grade", methods=["POST"])
+@jwt_required()
+def add_grade_submission(submission_id):
+    claims = get_jwt()
+    if claims["user_type"] != "teacher":
+        return jsonify({"message": "Only teachers can add grades."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Invalid data."}), 400
+
+    try:
+        score = data.get("score")
+        feedback = data.get("feedback", "")
+
+        if score is None or not isinstance(score, (int, float)):
+            return jsonify({"message": "Score must be provided and should be a number."}), 400
+
+        # 查找提交
+        submission = Submissions.query.get_or_404(submission_id)
+
+        # 確認是否已評分
+        if submission.score is not None:
+            return jsonify({"message": "Grade already exists. Use the update API to modify the grade."}), 400
+
+        # 新增評分與評語
+        submission.score = score
+        submission.feedback = feedback
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error adding grade: {str(e)}"}), 500
+
+    return jsonify({
+        "message": "Submission graded successfully.",
+        "submission": {
+            "submission_id": submission.submission_id,
+            "assignment_id": submission.assignment_id,
+            "student_id": submission.student_id,
+            "score": submission.score,
+            "feedback": submission.feedback,
+            "submitted_at": submission.submitted_at,
+        },
+    }), 201
+
+# 修改評分
+@app.route("/submissions/<int:submission_id>/grade", methods=["PUT"])
+@jwt_required()
+def update_grade_submission(submission_id):
+    claims = get_jwt()
+    if claims["user_type"] != "teacher":
+        return jsonify({"message": "Only teachers can update grades."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Invalid data."}), 400
+
+    try:
+        score = data.get("score")
+        feedback = data.get("feedback", "")
+
+        if score is None or not isinstance(score, (int, float)):
+            return jsonify({"message": "Score must be provided and should be a number."}), 400
+
+        # 查找提交
+        submission = Submissions.query.get_or_404(submission_id)
+
+        # 確認是否已評分
+        if submission.score is None:
+            return jsonify({"message": "Grade does not exist. Use the add API to create a grade."}), 400
+
+        # 修改評分與評語
+        submission.score = score
+        submission.feedback = feedback
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error updating grade: {str(e)}"}), 500
+
+    return jsonify({
+        "message": "Submission grade updated successfully.",
+        "submission": {
+            "submission_id": submission.submission_id,
+            "assignment_id": submission.assignment_id,
+            "student_id": submission.student_id,
+            "score": submission.score,
+            "feedback": submission.feedback,
+            "submitted_at": submission.submitted_at,
+        },
+    }), 200
 
 
 
