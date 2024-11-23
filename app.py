@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
-from models import db, Teacher, Student, Course
+from models import db, Teacher, Student, Course, Assignments, AssignmentFiles
 from config import Config
 from marshmallow import ValidationError
 from schemas import LoginSchema, UserDataUpdateSchema, RegisterSchema
 from flask_migrate import Migrate
 from flask_cors import CORS
+from datetime import datetime
 
 from werkzeug.security import generate_password_hash
 
@@ -411,9 +412,154 @@ def register():
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": str(e)}), 500
+    
+# 新增作業功能    
+@app.route("/assignments", methods=["POST"])
+@jwt_required()
+def create_assignment():
+    claims = get_jwt()
+    # 僅限教師新增作業
+    if claims["user_type"] != "teacher":
+        return jsonify({"message": "Only teachers can create assignments."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Invalid data."}), 400
+
+    try:
+        title = data["title"]
+        description = data.get("description", "")
+        due_date = data["due_date"]
+        course_id = data["course_id"]
+        files = data.get("files", [])  # 檔案清單
+    except KeyError as e:
+        return jsonify({"message": f"Missing required field: {str(e)}"}), 400
+
+    if not title or not due_date or not course_id:
+        return jsonify({"message": "Missing required fields."}), 400
+
+    try:
+        # 新增作業基本資料
+        new_assignment = Assignments(
+            course_id=course_id,
+            title=title,
+            description=description,
+            due_date=due_date,
+            created_date=datetime.now(),
+            modified_date=datetime.now(),
+        )
+
+        # 新增檔案
+        for file_url in files:
+            assignment_file = AssignmentFiles(file_url=file_url)
+            new_assignment.files.append(assignment_file)  # 透過 relationship 自動關聯
+
+        db.session.add(new_assignment)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error creating assignment: {str(e)}"}), 500
+
+    return jsonify({
+        "message": "Assignment created successfully.",
+        "assignment": {
+            "id": new_assignment.assignment_id,
+            "title": new_assignment.title,
+            "description": new_assignment.description,
+            "due_date": new_assignment.due_date,
+            "created_date": new_assignment.created_date,
+            "modified_date": new_assignment.modified_date,
+            "files": [file.file_url for file in new_assignment.files],
+        },
+    }), 201
+
+# delete 作業
+@app.route("/assignments/<int:assignment_id>", methods=["DELETE"])
+@jwt_required()
+def delete_assignment(assignment_id):
+    claims = get_jwt()
+    if claims["user_type"] != "teacher":
+        return jsonify({"message": "Only teachers can delete assignments."}), 403
+
+    try:
+        assignment = Assignments.query.get_or_404(assignment_id)
+        db.session.delete(assignment)  # 自動刪除關聯的檔案
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error deleting assignment: {str(e)}"}), 500
+
+    return jsonify({"message": "Assignment deleted successfully."}), 200
+
+
+# 查詢作業
+@app.route("/assignments/<int:course_id>", methods=["GET"])
+@jwt_required()
+def get_assignments(course_id):
+    assignments = Assignments.query.filter_by(course_id=course_id).all()
+    response = []
+    for assignment in assignments:
+        response.append({
+            "id": assignment.assignment_id,
+            "title": assignment.title,
+            "description": assignment.description,
+            "due_date": assignment.due_date,
+            "created_date": assignment.created_date,
+            "modified_date": assignment.modified_date,
+            "files": [file.file_url for file in assignment.files]
+        })
+    return jsonify({"assignments": response}), 200
+
+
+# 修改 assignment
+@app.route("/assignments/<int:assignment_id>", methods=["PUT"])
+@jwt_required()
+def update_assignment(assignment_id):
+    claims = get_jwt()
+    if claims["user_type"] != "teacher":
+        return jsonify({"message": "Only teachers can update assignments."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Invalid data."}), 400
+
+    try:
+        assignment = Assignments.query.get_or_404(assignment_id)
+        
+        # 更新作業基本資訊
+        assignment.title = data.get("title", assignment.title)
+        assignment.description = data.get("description", assignment.description)
+        assignment.due_date = data.get("due_date", assignment.due_date)
+        assignment.modified_date = datetime.utcnow()
+
+        # 更新檔案資料（如果有提供）
+        new_files = data.get("files", [])
+        if new_files:
+            # 刪除舊檔案記錄
+            AssignmentFiles.query.filter_by(assignment_id=assignment_id).delete()
+            
+            # 新增新檔案記錄
+            for file_url in new_files:
+                new_file = AssignmentFiles(
+                    assignment_id=assignment_id,
+                    file_url=file_url
+                )
+                db.session.add(new_file)
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error updating assignment: {str(e)}"}), 500
+
+    return jsonify({"message": "Assignment updated successfully."}), 200
+
+
 
 
 if __name__ == "__main__":
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
     app.run(debug=True)
+    
+

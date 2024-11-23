@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -92,4 +93,31 @@ class Course_sections(db.Model):
             'end_date': self.end_date.isoformat(),
             'publish_date': self.publish_date.isoformat(),
         }
+
+# Assignments
+class Assignments(db.Model):
+    __tablename__ = "Assignments"
+    assignment_id = db.Column(db.Integer, primary_key=True, autoincrement=True) 
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False) 
+    title = db.Column(db.String(50), nullable=False) 
+    description = db.Column(db.Text, nullable=True) 
+    due_date = db.Column(db.DateTime, nullable=False)  # 作業截止日期
+    created_date = db.Column(db.DateTime, nullable=False, default=datetime.now)  # 作業發布時間
+    modified_date = db.Column(db.DateTime, nullable=False, default=datetime.now, onupdate=datetime.now)  # 作業更改時間
+
+    # 與 AssignmentFiles 的一對多關係
+    files = db.relationship(
+        "AssignmentFiles",
+        backref="assignment",  # 在 AssignmentFiles 中會建立 `assignment` 屬性
+        cascade="all, delete-orphan",  # 自動處理相關檔案刪除
+        lazy=True
+    )
+
+
+# various files storage
+class AssignmentFiles(db.Model):
+    __tablename__ = "AssignmentFiles"
+    file_id = db.Column(db.Integer, primary_key=True, autoincrement=True)  # 檔案 ID
+    assignment_id = db.Column(db.Integer, db.ForeignKey("Assignments.assignment_id"), nullable=False)  # 對應的作業 ID
+    file_url = db.Column(db.String(255), nullable=False)  # 檔案存放路徑或 URL
 

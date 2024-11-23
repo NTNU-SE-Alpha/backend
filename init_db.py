@@ -1,5 +1,5 @@
 from app import app, db
-from models import Teacher, Student, Course, Course_sections
+from models import Teacher, Student, Course, Course_sections, Assignments, AssignmentFiles
 from datetime import datetime
 
 
@@ -63,7 +63,38 @@ def init_db():
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
         )
+        
+        # 新增作業資料
+        assignment1 = Assignments(
+            course_id=1,
+            title="作業 1: 軟體開發流程",
+            description="閱讀課本第 1-3 章，並撰寫報告。",
+            due_date=datetime(2024, 10, 15, 23, 59),
+            created_date=datetime.now(),
+            modified_date=datetime.now(),
+        )
 
+        assignment2 = Assignments(
+            course_id=2,
+            title="作業 1: 電子元件設計",
+            description="設計一個基本電路並提供模擬結果。",
+            due_date=datetime(2024, 10, 20, 23, 59),
+            created_date=datetime.now(),
+            modified_date=datetime.now(),
+        )
+
+        # 新增作業附加檔案
+        assignment_file1 = AssignmentFiles(
+            assignment_id=1,
+            file_url="uploads/Assignment1_Guidelines.pdf",
+        )
+
+        assignment_file2 = AssignmentFiles(
+            assignment_id=2,
+            file_url="uploads/Circuit_Design_Examples.zip",
+        )
+        
+        #先生成id
         db.session.add_all(
             [
                 teacher1,
@@ -75,6 +106,17 @@ def init_db():
                 course3,
                 section1,
                 section2,
+            ]
+            
+        )
+        db.session.commit()
+
+        db.session.add_all(
+            [
+                assignment1,
+                assignment2,
+                assignment_file1,
+                assignment_file2
             ]
         )
 
