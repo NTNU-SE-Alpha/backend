@@ -972,7 +972,7 @@ def group_chat_history():
             "student_id": message.student_id,
             "username": message.sender,
             "message": message.message,
-            "sent_at": message.sent_at.isoformat(),
+            "sent_at": message.sent_at.strftime("%Y-%m-%d %H:%M:%S"),
         }
         for message in messages
     ]
@@ -1026,7 +1026,7 @@ def handle_message(data):
             "student_id": user.id,
             "sender": user.name,
             "message": data,
-            "sent_at": message.sent_at.isoformat(),
+            "sent_at": message.sent_at.strftime("%Y-%m-%d %H:%M:%S"),
         },
         room=room,
     )
