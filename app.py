@@ -887,7 +887,7 @@ def register():
         return jsonify({"message": str(e)}), 500
 
 
-@app.route("/add_favorite/<int:course_id>", methods=["PUT"])
+@app.route("/toggle_favorite/<int:course_id>", methods=["PUT"])
 @jwt_required()
 def add_favorite(course_id):
     claims = get_jwt()
@@ -902,9 +902,12 @@ def add_favorite(course_id):
         course = Course.query.filter_by(id=course_id, teacher_id=user.id).first()
         if not course:
             return jsonify({"error": "Course not found or not owned by teacher"}), 404
-        course.is_favorite = True
+        if course.is_favorite:
+            course.is_favorite = False
+        else:
+            course.is_favorite = True
         db.session.commit()
-        return jsonify({"success": "Course marked as favorite"}), 200
+        return jsonify({"success": "Course favorite toggled"}), 200
 
 
 @app.route("/favorites", methods=["GET"])
