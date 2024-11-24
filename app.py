@@ -54,7 +54,6 @@ db.init_app(app)
 jwt = JWTManager(app)
 socketio = SocketIO(app)
 
-
 aiteacher = AITeacher(app.config["OPENAI_API_KEY"])
 
 
@@ -613,7 +612,7 @@ def chat(conversation_uuid):
     return jsonify({"answer": answer})
 
 
-@app.route("/history/<string:conversation_uuid>", methods=["GET"])
+@app.route("/conversation/<string:conversation_uuid>", methods=["GET"])
 @jwt_required()
 def get_history(conversation_uuid):
     claims = get_jwt()
@@ -655,6 +654,45 @@ def get_history(conversation_uuid):
         for id, sender, msg, sent_at in conversation_history
     ]
     return jsonify({"uuid": conversation_uuid, "history": formatted_history})
+
+
+@app.route("/conversation/<string:conversation_uuid>", methods=["DELETE"])
+@jwt_required()
+def delete_conversation(conversation_uuid):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+
+    if not conversation_uuid:
+        return jsonify({"message": "The UUID of conversation is required."}), 400
+
+    conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+
+    if conversation is None:
+        return jsonify({"message": "The UUID of conversation is invalid."}), 400
+
+    if conversation.teacher_id != user_id:
+        return jsonify({"message": "Not authorized."}), 401
+
+    try:
+        db.session.delete(conversation)
+        db.session.commit()
+
+        return jsonify(
+            {"message": f"Conversation with UUID {conversation_uuid} has been deleted."}
+        ), 200
+
+    except Exception as e:
+        app.logger.error(f"Error deleting conversation: {e}")
+        db.session.rollback()
+        return jsonify({"message": "An error occurred while deleting the student"})
 
 
 @app.route("/list_conversations", methods=["GET"])
