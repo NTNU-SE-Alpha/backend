@@ -75,6 +75,7 @@ class Course(db.Model):
             "weekday": self.weekday,
             "semester": self.semester,
             "archive": self.archive,
+            "is_favorite": self.is_favorite,
         }
 
     def get_sections(self):

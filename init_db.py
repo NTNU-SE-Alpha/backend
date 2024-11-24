@@ -35,7 +35,7 @@ def init_db():
         course2 = Course(
             name="電子學", 
             teacher_id=2,
-            weekday="Thur", 
+            weekday="Thu", 
             semester="113-1",
             archive=False,
             is_favorite=False
@@ -290,25 +290,6 @@ def init_db():
             publish_date=datetime(2024, 10, 7, 12, 0),
         )
 
-        section19 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=11,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section20 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=11,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
-
         section21 = Course_sections(
             name="Week 1",
             sequence=1,
@@ -387,8 +368,6 @@ def init_db():
                 section16,
                 section17,
                 section18,
-                section19,
-                section20,
                 section21,
                 section22, 
         ])
