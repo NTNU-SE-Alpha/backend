@@ -90,7 +90,7 @@ class Course_sections(db.Model):
     __tablename__ = "course_sections"
     id = db.Column(db.Integer, primary_key=True)
     sequence = db.Column(db.Integer)
-    name = db.Column(db.String(20), nullable=False, unique=True)
+    name = db.Column(db.String(20), nullable=False)
     course = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
     start_date = db.Column(db.DateTime, nullable=False)
     end_date = db.Column(db.DateTime, nullable=False)

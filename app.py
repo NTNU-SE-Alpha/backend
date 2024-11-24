@@ -95,10 +95,16 @@ def login():
 
     # 回傳使用者的資料
     if user_type == "teacher":
-        user_info = {"id": user.id, "username": user.username, "name": user.name}
+        user_info = {
+            "id": user.id,
+            "user_type": "teacher",
+            "username": user.username,
+            "name": user.name,
+        }
     else:
         user_info = {
             "id": user.id,
+            "user_type": "student",
             "username": user.username,
             "name": user.name,
             "course": user.course,
@@ -301,21 +307,40 @@ def get_course(course_id):
     if course:
         return course.to_dict()
     else:
-        return {"error": "Course not found"}, 404
+        return jsonify({"error": "Course not found"}), 404
 
 
 @app.route("/getSections/<int:course_id>")
+@jwt_required()
 # 取得每週課程資訊
 def get_course_sections(course_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+
     course = Course.query.get(course_id)
     if course:
-        # 檢查該學生是否為課程學生
-        if course.is_student(course_id):
-            sections = course.get_sections()
-            sections_data = [section.to_dict() for section in sections]
-            return jsonify({"sections": sections_data}), 200
+        if user_type == "student":
+            # 檢查該學生是否為課程學生
+            if course.is_student(user_id):
+                sections = course.get_sections()
+                sections_data = [section.to_dict() for section in sections]
+                return jsonify({"sections": sections_data}), 200
+            else:
+                # Return a response if the student is not part of the course
+                return jsonify({"error": "You are not a student of this course"}), 403
+        elif user_type == "teacher":
+            if course.teacher_id == user_id:
+                sections = course.get_sections()
+                sections_data = [section.to_dict() for section in sections]
+                return jsonify({"sections": sections_data}), 200
+            else:
+                # Return a response if the student is not part of the course
+                return jsonify({"error": "You are not a teacher of this course"}), 403
+        else:
+            return jsonify({"error": "Error"}), 403
     else:
-        return {"error": "Course not found"}, 404
+        return jsonify({"error": "Course not found"}), 404
 
 
 @app.route("/getStudents/<int:course_id>")
@@ -513,9 +538,9 @@ def start_conversation():
             return jsonify({"message": "User not found."}), 404
 
     course_id = request.form.get("course_id")
-    course_section = request.form.get("course_section")
+    course_section_id = request.form.get("course_section_id")
     new_conversation = Conversation(
-        teacher_id=user_id, course_id=course_id, course_section=course_section
+        teacher_id=user_id, course_id=course_id, course_section=course_section_id
     )
     db.session.add(new_conversation)
     db.session.commit()
@@ -731,14 +756,12 @@ def list_conversations():
     conversation_list = []
     for conversation in conversations:
         course = Course.query.filter_by(id=conversation.course_id).first()
-        course_section = Course_sections.query.filter_by(
-            course=conversation.course_id, sequence=conversation.course_section
-        ).first()
+        course_section = Course_sections.query.filter_by(id=conversation.course_section).first()
         conversation_list.append(
             {
                 "uuid": conversation.uuid,
                 "course_name": course.name,
-                " ": course_section.name,
+                "course_section": course_section.name,
                 "summary": conversation.summary
                 if conversation.summary
                 else "No summary available",
