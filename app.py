@@ -648,6 +648,127 @@ def update_grade_submission(submission_id):
         },
     }), 200
 
+# 學生繳交作業
+@app.route("/submissions", methods=["POST"])
+@jwt_required()
+def create_submission():
+    claims = get_jwt()
+    # 僅限學生提交作業
+    if claims["user_type"] != "student":
+        return jsonify({"message": "Only students can submit assignments."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Invalid data."}), 400
+
+    try:
+        assignment_id = data["assignment_id"]
+        description = data.get("description", "")
+        files = data.get("files", [])  # 檔案清單
+    except KeyError as e:
+        return jsonify({"message": f"Missing required field: {str(e)}"}), 400
+
+    if not assignment_id:
+        return jsonify({"message": "Assignment ID is required."}), 400
+
+    try:
+        new_submission = Submissions(
+            assignment_id=assignment_id,
+            student_id=claims["user_id"],  # JWT 中的學生 ID
+            description=description,
+            submitted_at=datetime.now(),
+        )
+
+        # 處理提交檔案
+        for file_url in files:
+            submission_file = SubmissionFiles(file_url=file_url)
+            new_submission.files.append(submission_file)
+
+        db.session.add(new_submission)
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error creating submission: {str(e)}"}), 500
+
+    return jsonify({"message": "Submission created successfully."}), 201
+
+# 修改繳交的作業
+@app.route("/submissions/<int:submission_id>", methods=["PUT"])
+@jwt_required()
+def update_submission(submission_id):
+    claims = get_jwt()
+    if claims["user_type"] != "student":
+        return jsonify({"message": "Only students can update submissions."}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Invalid data."}), 400
+
+    try:
+        submission = Submissions.query.filter_by(
+            submission_id=submission_id, student_id=claims["user_id"]
+        ).first_or_404()
+
+        # 更新描述
+        submission.description = data.get("description", submission.description)
+        submission.submitted_at = datetime.now()
+
+        # 更新檔案
+        new_files = data.get("files", [])
+        if new_files:
+            # 刪除舊檔案
+            SubmissionFiles.query.filter_by(submission_id=submission_id).delete()
+
+            # 新增新檔案
+            for file_url in new_files:
+                submission_file = SubmissionFiles(file_url=file_url)
+                submission.files.append(submission_file)
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error updating submission: {str(e)}"}), 500
+
+    return jsonify({"message": "Submission updated successfully."}), 200
+
+# 查詢繳交的作業
+@app.route("/submissions/<int:assignment_id>", methods=["GET"])
+@jwt_required()
+def get_submissions(assignment_id):
+    claims = get_jwt()
+    if claims["user_type"] not in ["teacher", "student"]:
+        return jsonify({"message": "Unauthorized."}), 403
+
+    try:
+        # 學生只能查自己的提交
+        if claims["user_type"] == "student":
+            submissions = Submissions.query.filter_by(
+                assignment_id=assignment_id, student_id=claims["user_id"]
+            ).all()
+        else:
+            # 老師可以查所有提交
+            submissions = Submissions.query.filter_by(assignment_id=assignment_id).all()
+
+        response = []
+        for submission in submissions:
+            response.append({
+                "submission_id": submission.submission_id,
+                "student_id": submission.student_id,
+                "description": submission.description,
+                "submitted_at": submission.submitted_at,
+                "score": submission.score,
+                "feedback": submission.feedback,
+                "files": [{"file_id": f.file_id, "file_url": f.file_url} for f in submission.files],
+            })
+
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving submissions: {str(e)}"}), 500
+
+    return jsonify({"submissions": response}), 200
+
+
 
 
 
