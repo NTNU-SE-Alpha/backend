@@ -174,9 +174,15 @@ def update_user_data():
             if not user:
                 return jsonify({"message": "User not found."}), 404
 
+            if "old_password" not in validated_data:
+                return jsonify({"message": "Please input your current password"}), 400
+            
+            if not user.check_password(validated_data["old_password"]):
+                return jsonify({"message": "Old password is incorrect."}), 400
+            
             # 檢查請求是否包含要更改的資料
-            if "password" in validated_data:
-                user.set_password(validated_data["password"])
+            if "new_password" in validated_data:
+                user.set_password(validated_data["new_password"])
 
             db.session.commit()
 
@@ -187,10 +193,16 @@ def update_user_data():
             user = Student.query.get(user_id)
             if not user:
                 return jsonify({"message": "User not found."}), 404
-
+            
+            if "old_password" not in validated_data:
+                return jsonify({"message": "Please input your current password"}), 400
+            
+            if not user.check_password(validated_data["old_password"]):
+                return jsonify({"message": "Old password is incorrect."}), 400
+            
             # 檢查請求是否包含要更改的資料
-            if "password" in validated_data:
-                user.set_password(validated_data["password"])
+            if "new_password" in validated_data:
+                user.set_password(validated_data["new_password"])
 
             db.session.commit()
 
