@@ -126,7 +126,12 @@ def get_user_data():
         if not user:
             return jsonify({"message": "User not found."}), 404
 
-        user_info = {"id": user.id, "username": user.username, "name": user.name}
+        user_info = {
+            "id": user.id,
+            "user_type": "teacher",
+            "username": user.username,
+            "name": user.name,
+        }
 
     elif user_type == "student":
         user = Student.query.get(user_id)
@@ -135,6 +140,7 @@ def get_user_data():
 
         user_info = {
             "id": user.id,
+            "user_type": "student",
             "username": user.username,
             "name": user.name,
             "course": user.course,
@@ -176,10 +182,10 @@ def update_user_data():
 
             if "old_password" not in validated_data:
                 return jsonify({"message": "Please input your current password"}), 400
-            
+
             if not user.check_password(validated_data["old_password"]):
                 return jsonify({"message": "Old password is incorrect."}), 400
-            
+
             # 檢查請求是否包含要更改的資料
             if "new_password" in validated_data:
                 user.set_password(validated_data["new_password"])
@@ -193,13 +199,13 @@ def update_user_data():
             user = Student.query.get(user_id)
             if not user:
                 return jsonify({"message": "User not found."}), 404
-            
+
             if "old_password" not in validated_data:
                 return jsonify({"message": "Please input your current password"}), 400
-            
+
             if not user.check_password(validated_data["old_password"]):
                 return jsonify({"message": "Old password is incorrect."}), 400
-            
+
             # 檢查請求是否包含要更改的資料
             if "new_password" in validated_data:
                 user.set_password(validated_data["new_password"])
