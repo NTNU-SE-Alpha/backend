@@ -11,16 +11,16 @@ def init_db():
         db.create_all()
         print("Database tables created.")
 
-        teacher1 = Teacher(id=1, username="neokent", name="劑博聞")
+        teacher1 = Teacher(id=1,username="neokent", name="劑博聞")
         teacher1.set_password("securepassword1")
 
-        teacher2 = Teacher(id=2, username="ytchang", name="張諭騰")
+        teacher2 = Teacher(id=2,username="ytchang", name="張諭騰")
         teacher2.set_password("securepassword2")
-
-        teacher3 = Teacher(id=3, username="brucelin", name="林政紅")
+        
+        teacher3 = Teacher(id=3,username="brucelin", name="林政紅")
         teacher3.set_password("securepassword3")
 
-        teacher4 = Teacher(id=4, username="cklu", name="旅程凱")
+        teacher4 = Teacher(id=4,username="cklu", name="旅程凱")
         teacher4.set_password("securepassword4")
 
         course1 = Course(
@@ -29,16 +29,16 @@ def init_db():
             weekday="Wed",
             semester="113-1",
             archive=False,
-            is_favorite=False,
+            is_favorite=False
         )
 
         course2 = Course(
-            name="電子學",
+            name="電子學", 
             teacher_id=2,
-            weekday="Thur",
+            weekday="Thur", 
             semester="113-1",
             archive=False,
-            is_favorite=False,
+            is_favorite=False
         )
 
         course3 = Course(
@@ -120,8 +120,10 @@ def init_db():
             username="41275023H", name="曾柏魚", course=2, group_number=2
         )
         student2.set_password("studentpass2")
-
-        student3 = Student(username="41275024H", name="章節", course=2, group_number=2)
+        
+        student3 = Student(
+            username="41275024H", name="章節", course=2, group_number=2
+        )
         student3.set_password("studentpass3")
 
         student4 = Student(
@@ -133,6 +135,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=2,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -141,6 +144,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=2,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -150,6 +154,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=3,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -158,6 +163,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=3,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -167,6 +173,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=4,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -175,6 +182,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=4,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -184,6 +192,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=5,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -192,6 +201,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=5,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -201,6 +211,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=6,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -209,6 +220,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=6,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -218,6 +230,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=7,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -226,6 +239,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=7,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -235,6 +249,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=8,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -243,6 +258,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=8,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -252,6 +268,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=9,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -260,6 +277,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=9,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -269,6 +287,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=10,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -277,6 +296,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=10,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -286,6 +306,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=11,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -294,6 +315,7 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=11,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
@@ -303,6 +325,7 @@ def init_db():
             name="Week 1",
             sequence=1,
             course=1,
+            content="測試資料",
             start_date=datetime(2024, 10, 8, 8, 0),
             end_date=datetime(2024, 10, 8, 10, 0),
             publish_date=datetime(2024, 9, 30, 12, 0),
@@ -311,11 +334,12 @@ def init_db():
             name="Week 2",
             sequence=2,
             course=1,
+            content="測試資料",
             start_date=datetime(2024, 10, 15, 8, 0),
             end_date=datetime(2024, 10, 15, 10, 0),
             publish_date=datetime(2024, 10, 7, 12, 0),
         )
-
+        
         teachfile1 = TeacherFiles(
             teacher=1,
             class_id=1,
@@ -333,9 +357,8 @@ def init_db():
             ]
         )
         db.session.commit()
-
-        db.session.add_all(
-            [
+        
+        db.session.add_all([
                 course1,
                 course2,
                 course3,
@@ -347,22 +370,18 @@ def init_db():
                 course9,
                 course10,
                 course11,
-            ]
-        )
+        ])
         db.session.commit()
-
-        db.session.add_all(
-            [
+        
+        db.session.add_all([
                 student1,
                 student2,
                 student3,
-                student4,
-            ]
-        )
+                student4, 
+        ])
         db.session.commit()
-
-        db.session.add_all(
-            [
+        
+        db.session.add_all([
                 section1,
                 section2,
                 section3,
@@ -384,14 +403,13 @@ def init_db():
                 section19,
                 section20,
                 section21,
-                section22,
-            ]
-        )
+                section22, 
+        ])
         db.session.commit()
-
+        
         db.session.add(teachfile1)
         db.session.commit()
-
+        
         print("Test data inserted into the database.")
 
 
