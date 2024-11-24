@@ -523,7 +523,7 @@ def download_file(file_id):
     return send_file(file_record.path, as_attachment=True)
 
 
-@app.route("/start_conversation", methods=["POST"])
+@app.route("/start_conversation", methods=["GET"])
 @jwt_required()
 def start_conversation():
     claims = get_jwt()
@@ -537,8 +537,10 @@ def start_conversation():
         if not user:
             return jsonify({"message": "User not found."}), 404
 
-    course_id = request.form.get("course_id")
-    course_section_id = request.form.get("course_section_id")
+    # course_id = request.form.get("course_id")
+    # course_section_id = request.form.get("course_section_id")
+    course_id = 1
+    course_section_id = 21
     new_conversation = Conversation(
         teacher_id=user_id, course_id=course_id, course_section=course_section_id
     )
