@@ -155,3 +155,12 @@ class StudentFiles(db.Model):
     name = db.Column(db.String(255), nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
+    
+class GroupMessage(db.Model):
+    __tablename__ = "group_message"
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    sender = db.Column(db.String(10), nullable=False)
+    room = db.Column(db.String(120), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.now())

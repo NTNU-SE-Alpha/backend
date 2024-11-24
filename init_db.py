@@ -53,6 +53,12 @@ def init_db():
             username="41275023H", name="曾柏魚", course=2, group_number=2
         )
         student2.set_password("studentpass2")
+        
+        student3 = Student(
+            username="41275024H", name="章節", course=2, group_number=2
+        )
+        student3.set_password("studentpass3")
+
 
         section1 = Course_sections(
             name="Week1",
@@ -84,6 +90,7 @@ def init_db():
             [
                 teacher1,
                 teacher2,
+                student3,
                 student1,
                 student2,
                 course1,
