@@ -62,19 +62,13 @@ def init_db():
             semester="113-1",
             archive=False,
         )
-        course6 = Course(
-            name="高等資安攻防演練",
-            teacher_id=1,
-            weekday="Fri",
-            semester="113-1",
-            archive=False,
-        )
         course7 = Course(
             name="類比積體電路導論",
             teacher_id=2,
             weekday="Thu",
             semester="113-1",
             archive=False,
+            is_favorite=True,
         )
         course8 = Course(
             name="電機專題製作",
@@ -82,13 +76,7 @@ def init_db():
             weekday="Fri",
             semester="113-1",
             archive=False,
-        )
-        course8 = Course(
-            name="電機專題製作",
-            teacher_id=2,
-            weekday="Fri",
-            semester="113-1",
-            archive=False,
+            is_favorite=True,
         )
         course9 = Course(
             name="數位系統",
@@ -364,7 +352,6 @@ def init_db():
                 course3,
                 course4,
                 course5,
-                course6,
                 course7,
                 course8,
                 course9,
