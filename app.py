@@ -758,7 +758,9 @@ def list_conversations():
     conversation_list = []
     for conversation in conversations:
         course = Course.query.filter_by(id=conversation.course_id).first()
-        course_section = Course_sections.query.filter_by(id=conversation.course_section).first()
+        course_section = Course_sections.query.filter_by(
+            id=conversation.course_section
+        ).first()
         conversation_list.append(
             {
                 "uuid": conversation.uuid,
@@ -885,7 +887,7 @@ def register():
         return jsonify({"message": str(e)}), 500
 
 
-@app.route("/add_favorite/<int:course_id>")
+@app.route("/add_favorite/<int:course_id>", methods=["PUT"])
 @jwt_required()
 def add_favorite(course_id):
     claims = get_jwt()
