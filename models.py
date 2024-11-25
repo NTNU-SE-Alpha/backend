@@ -163,6 +163,7 @@ class AnnounceFiles(db.Model):
     __tablename__ = "annoucement_files"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    class_id = db.Column(db.Integer, nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
 

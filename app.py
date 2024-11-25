@@ -24,6 +24,7 @@ from models import (
     TeacherFaiss,
     TeacherFiles,
     Announcement,
+    AnnounceFiles,
     db,
 )
 from schemas import LoginSchema, RegisterSchema, UserDataUpdateSchema
@@ -318,6 +319,13 @@ def save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
         new_file = StudentFiles(
             class_id=class_id,
             student=uploader_id,
+            name=filename,
+            path=filepath,
+            checksum=checksum
+        )
+    elif uploader_type == "announcement":
+        new_file = AnnounceFiles(
+            class_id=class_id,
             name=filename,
             path=filepath,
             checksum=checksum
@@ -874,6 +882,37 @@ def update_course_data():
         app.logger.error(f"Error updating course: {e}")
         db.session.rollback()
         return jsonify({"message": "An error occurred while updating the course"}), 500
+    
+@app.route('/api/upload_announcement_file', methods=['POST'])
+@jwt_required()
+def upload_announcement_file():
+    claims = get_jwt()
+    uploader_id = claims.get("user_id")
+    uploader_type = claims.get("user_type")
+    class_id = request.form.get("class_id")  # 修改這裡，從 course_id 改為 class_id
+
+    if not class_id:
+        return jsonify({'error': 'Class ID is required'}), 400
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    if not uploader_type or uploader_type != "teacher":
+        return jsonify({"message": "Permission denied."}), 403
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    filename, filepath = save_file(file, OTHER_ALLOWED_EXTENSIONS)
+    if filename:
+        # 儲存檔案資訊到資料庫
+        if save_file_info(uploader_id, "announcement", class_id, filename, filepath):
+            return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+        else:
+            return jsonify({'error': 'Failed to save file info'}), 500
+    return jsonify({'error': 'File type not allowed'}), 400
     
 @app.route("/getAnnounsement/<int:course_id>")
 # 取得每週公告資訊
