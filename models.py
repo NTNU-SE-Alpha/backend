@@ -158,3 +158,33 @@ class StudentFiles(db.Model):
     name = db.Column(db.String(255), nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
+
+class AnnounceFiles(db.Model):
+    __tablename__ = "annoucement_files"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    path = db.Column(db.String(255), nullable=False)
+    checksum = db.Column(db.String(64), nullable=False)
+
+class Announcement(db.Model):
+    __tablename__ = "announcement"
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    title = db.Column(db.String(120), nullable=False)
+    content = db.Column(db.String(120))
+    attachment_ids = db.Column(db.String(255))
+    visibility = db.Column(db.Boolean, default=False)
+    start_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=False)
+    publish_date = db.Column(db.DateTime, nullable=False)
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "course_id": self.course_id,
+            "title": self.title,
+            "content": self.content,
+            "visibility": self.visibility,
+            "start_date": self.start_date.isoformat(),
+            "end_date": self.end_date.isoformat(),
+            "publish_date": self.publish_date.isoformat(),
+        }

@@ -23,6 +23,7 @@ from models import (
     Teacher,
     TeacherFaiss,
     TeacherFiles,
+    Announcement,
     db,
 )
 from schemas import LoginSchema, RegisterSchema, UserDataUpdateSchema
@@ -873,3 +874,70 @@ def update_course_data():
         app.logger.error(f"Error updating course: {e}")
         db.session.rollback()
         return jsonify({"message": "An error occurred while updating the course"}), 500
+    
+@app.route("/getAnnounsement/<int:course_id>")
+# 取得每週公告資訊
+def get_course_announcement(course_id):
+    course = Course.query.get(course_id)
+    if course:
+        announcements = Announcement.query.filter_by(course=course.id).order_by(Announcement.start_date).all()
+        announce_data = [annouce.to_dict() for annouce in announcements]
+        return jsonify({"announcements": announce_data}), 200
+    else:
+        return jsonify({"error": "Course not found"}), 404
+    
+    
+@app.route("/add_annoucement", methods = ['POST'])
+@jwt_required
+def add_annoucement():
+    data = request.get_json()
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    if not user_type:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "teacher":
+        if not data.get('title'):
+            return jsonify({"message": "Title is required."}), 400
+        content = data.get("content", "")  
+        attachment_ids = data.get("attachment_ids", "") 
+        if isinstance(attachment_ids, list):
+            attachment_ids = ",".join(map(str, attachment_ids))  
+
+        new_announcement = Announcement(
+            course_id=data.get("course_id"),
+            title=data["title"],
+            content=content,
+            attachment_ids=attachment_ids,
+            visibility=data.get("visibility", False),  
+            start_date=data.get("start_date"),
+            end_date=data.get("end_date"),
+            publish_date=data.get("publish_date"),
+        )
+
+        # 儲存至資料庫
+        db.session.add(new_announcement)
+        db.session.commit()
+
+        return jsonify({"message": "Announcement created successfully."}), 200
+
+    return jsonify({"message": "Permission denied."}), 403
+
+@app.route("/delete_announcement/<int:announcement_id>", methods=["DELETE"])
+@jwt_required()
+def delete_announcement(announcement_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    
+    if not user_type or user_type != "teacher":
+        return jsonify({"message": "Permission denied."}), 403
+    
+    # 查找指定公告
+    announcement = Announcement.query.get(announcement_id)
+    if not announcement:
+        return jsonify({"message": "Announcement not found."}), 404
+
+    db.session.delete(announcement)
+    db.session.commit()
+    return jsonify({"message": "Announcement deleted successfully."}), 200
+    
