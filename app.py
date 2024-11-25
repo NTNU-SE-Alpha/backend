@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import uuid
 
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
@@ -515,7 +516,7 @@ def download_file(file_id):
             id=file_id, class_id=course_id, student=user_id
         ).first()
     else:
-        return jsonify({"error": "Access forbidden"}), 403
+        return jsonify({"error": "Access forbidden."}), 403
 
     if not file_record or not os.path.exists(file_record.path):
         return jsonify({"error": "File not found"}), 404
@@ -536,17 +537,27 @@ def start_conversation():
         user = Teacher.query.get(user_id)
         if not user:
             return jsonify({"message": "User not found."}), 404
-
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
     # course_id = request.form.get("course_id")
     # course_section_id = request.form.get("course_section_id")
-    course_id = 1
-    course_section_id = 21
-    new_conversation = Conversation(
-        teacher_id=user_id, course_id=course_id, course_section=course_section_id
-    )
-    db.session.add(new_conversation)
-    db.session.commit()
-    return jsonify({"uuid": new_conversation.uuid})
+    # course_id = 1
+    # course_section_id = 21
+
+    # new_conversation = Conversation(
+    #     teacher_id=user_id, course_id=course_id, course_section=course_section_id
+    # )
+    # db.session.add(new_conversation)
+    # db.session.commit()
+    return jsonify({"uuid": uuid.uuid4()})
+
+
+def is_valid_uuid(uuid_to_test):
+    try:
+        uuid_obj = uuid.UUID(str(uuid_to_test))
+        return True
+    except ValueError:
+        return False
 
 
 @app.route("/chat/<string:conversation_uuid>", methods=["POST"])
@@ -562,6 +573,8 @@ def chat(conversation_uuid):
         user = Teacher.query.get(user_id)
         if not user:
             return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
 
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400
@@ -569,9 +582,19 @@ def chat(conversation_uuid):
     conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
 
     if conversation is None:
-        return jsonify({"message": "The UUID of conversation is invalid."}), 400
+        if is_valid_uuid(conversation_uuid):
+            new_conversation = Conversation(
+                uuid=conversation_uuid,
+                teacher_id=user_id,
+                course_id=1,
+                course_section=1,
+            )
+            db.session.add(new_conversation)
+            db.session.commit()
+        else:
+            return jsonify({"message": "The UUID of conversation is invalid."}), 400
 
-    if conversation.teacher_id != user_id:
+    elif conversation.teacher_id != user_id:
         return jsonify({"message": "Not authorized."}), 401
 
     data = request.json
@@ -670,6 +693,9 @@ def get_history(conversation_uuid):
         user = Teacher.query.get(user_id)
         if not user:
             return jsonify({"message": "User not found."}), 404
+
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
 
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400

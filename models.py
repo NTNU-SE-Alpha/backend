@@ -115,9 +115,10 @@ class Course_sections(db.Model):
 
 class Conversation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    uuid = db.Column(
-        db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
-    )
+    # uuid = db.Column(
+    #     db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
+    # )
+    uuid = db.Column(db.String(36), unique=True, nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
     course_section = db.Column(db.Integer, nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
