@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime,timedelta
 
 from app import app, db
 
@@ -119,195 +119,86 @@ def init_db():
         )
         student4.set_password("studentpass4")
 
-        section1 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=2,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section2 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=2,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+        sections = [
+            Course_sections(
+                name=f"Week {sequence}",
+                sequence=sequence,
+                course=course,
+                content="""
+## 課程目標
+- 了解資料結構的基本概念與重要性。
+- 探討資料結構在程式設計與問題解決中的應用。
 
-        section3 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=3,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section4 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=3,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+---
 
-        section5 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=4,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section6 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=4,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+## 課程大綱
+1. **資料結構簡介**
+   - 資料結構的定義與用途
+   - 資料結構與演算法的關係
+2. **時間與空間複雜度**
+   - 大O符號簡介
+   - 演算法效能分析
+3. **基本資料結構概念**
+   - 陣列（Array）
+   - 鏈結串列（Linked List）
 
-        section7 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=5,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section8 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=5,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+---
 
-        section9 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=6,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section10 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=6,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+## 課程內容
 
-        section11 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=7,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section12 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=7,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+### 1. 資料結構的定義
+- 資料的組織、管理與儲存方式。
+- 實例：如何在程式中有效率地存取與操作資料。
 
-        section13 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=8,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section14 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=8,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+### 2. 時間與空間複雜度
+- **時間複雜度**
+  - 描述演算法執行時間隨輸入大小的變化。
+  - 範例：迴圈的時間複雜度。
+- **空間複雜度**
+  - 描述演算法執行時所需的記憶體資源。
 
-        section15 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=9,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section16 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=9,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+### 3. 陣列與鏈結串列
+- **陣列**
+  - 定義：固定大小的連續記憶體區塊。
+  - 優缺點：快速存取，但插入與刪除成本高。
+- **鏈結串列**
+  - 定義：以節點（Node）連結的動態資料結構。
+  - 優缺點：靈活性高，但存取成本高。
 
-        section17 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=10,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section18 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=10,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+---
 
-        section21 = Course_sections(
-            name="Week 1",
-            sequence=1,
-            course=1,
-            content="測試資料",
-            start_date=datetime(2024, 10, 8, 8, 0),
-            end_date=datetime(2024, 10, 8, 10, 0),
-            publish_date=datetime(2024, 9, 30, 12, 0),
-        )
-        section22 = Course_sections(
-            name="Week 2",
-            sequence=2,
-            course=1,
-            content="測試資料",
-            start_date=datetime(2024, 10, 15, 8, 0),
-            end_date=datetime(2024, 10, 15, 10, 0),
-            publish_date=datetime(2024, 10, 7, 12, 0),
-        )
+## 必讀教材與參考資料
+- 教科書：《Data Structures and Algorithm Analysis in C》
+- 參考網站：[GeeksforGeeks - Data Structures](https://www.geeksforgeeks.org/data-structures/)
+
+---
+
+## 作業與練習
+1. **閱讀**教材中關於時間與空間複雜度的章節。
+2. **練習**：
+   - 使用陣列儲存並搜尋一組數字。
+   - 用鏈結串列實作基本操作（新增、刪除）。
+
+---
+
+## 提問與討論
+- [課程討論區](#)
+- **問題範例**：
+  - 陣列和鏈結串列適合用在什麼樣的應用場合？
+  - 如何評估演算法的時間複雜度？
+
+---
+
+## 下週預告
+- 堆疊（Stack）與佇列（Queue）的基本操作與應用。
+                """,
+                start_date=datetime(2024, 10, 8, 8, 0) + timedelta(weeks=sequence-1),
+                end_date=datetime(2024, 10, 8, 10, 0) + timedelta(weeks=sequence-1),
+                publish_date=datetime(2024, 9, 30, 12, 0) + timedelta(weeks=sequence-1),
+            )
+            for course in range(1, 11)
+            for sequence in range(1, 6)
+        ]
         
         teachfile1 = TeacherFiles(
             teacher=1,
@@ -349,28 +240,7 @@ def init_db():
         ])
         db.session.commit()
         
-        db.session.add_all([
-                section1,
-                section2,
-                section3,
-                section4,
-                section5,
-                section6,
-                section7,
-                section8,
-                section9,
-                section10,
-                section11,
-                section12,
-                section13,
-                section14,
-                section15,
-                section16,
-                section17,
-                section18,
-                section21,
-                section22, 
-        ])
+        db.session.add_all(sections)
         db.session.commit()
         
         db.session.add(teachfile1)

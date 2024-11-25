@@ -95,7 +95,7 @@ class Course_sections(db.Model):
     sequence = db.Column(db.Integer)
     name = db.Column(db.String(20), nullable=False)
     course = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
-    content = db.Column(db.String(500), nullable=True)
+    content = db.Column(db.String(2000), nullable=True)
     start_date = db.Column(db.DateTime, nullable=False)
     end_date = db.Column(db.DateTime, nullable=False)
     publish_date = db.Column(db.DateTime, nullable=False)
