@@ -158,3 +158,53 @@ class StudentFiles(db.Model):
     name = db.Column(db.String(255), nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
+
+class Announcement(db.Model):
+    __tablename__ = "announcements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    title = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    attachments = db.relationship(
+        "AnnouncementAttachment", backref="announcement", lazy=True
+    )
+    visibility = db.Column(
+        db.String(20), nullable=False, default="all"
+    )  # "all", "students", "teachers"
+    start_date = db.Column(db.DateTime, nullable=False)  # visibility開始日期
+    end_date = db.Column(db.DateTime, nullable=False)  # visibility結束日期
+    publish_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # 發布日期
+
+    #  將資料轉為 dict
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "course_id": self.course_id,
+            "title": self.title,
+            "content": self.content,
+            "attachments": [attachment.to_dict() for attachment in self.attachments],
+            "visibility": self.visibility,
+            "start_date": self.start_date.isoformat(),
+            "end_date": self.end_date.isoformat(),
+            "publish_date": self.publish_date.isoformat(),
+        }
+
+
+class AnnouncementAttachment(db.Model):
+    __tablename__ = "announcement_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    announcement_id = db.Column(db.Integer, db.ForeignKey("announcements.id"), nullable=False)
+    name = db.Column(db.String(255), nullable=False)  # attachment name
+    path = db.Column(db.String(255), nullable=False)  # attachment path
+    checksum = db.Column(db.String(64), nullable=False)  # 校驗碼
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "announcement_id": self.announcement_id,
+            "name": self.name,
+            "path": self.path,
+            "checksum": self.checksum,
+        }
