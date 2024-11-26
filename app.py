@@ -437,8 +437,12 @@ def download_file(filename):
 
     if user_type == "teacher":
         file_record = TeacherFiles.query.filter_by(name=filename, class_id=class_id, teacher=user_id).first()
+        if not file_record:
+            file_record = AnnounceFiles.query.filter_by(name=filename, class_id=class_id).first()
     elif user_type == "student":
         file_record = StudentFiles.query.filter_by(name=filename, class_id=class_id, student=user_id).first()
+        if not file_record:
+            file_record = AnnounceFiles.query.filter_by(name=filename, class_id=class_id).first()
     else:
         return jsonify({'error': 'Access forbidden'}), 403
 
