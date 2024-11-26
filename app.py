@@ -15,16 +15,21 @@ from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 
 from AI.teacher import AITeacher
+from AI.student import AIStudent
+
 from config import Config
 from models import (
-    Conversation,
     Course,
-    Course_sections,
-    GroupMessage,
+    CourseSections,
     Student,
+    StudentAIConversations,
+    StudentAIMessages,
     StudentFiles,
+    StudentGroupMessage,
     Teacher,
-    TeacherFaiss,
+    TeacherAIConversations,
+    TeacherAIFaisses,
+    TeacherAIMessages,
     TeacherFiles,
     db,
 )
@@ -56,6 +61,7 @@ jwt = JWTManager(app)
 socketio = SocketIO(app)
 
 aiteacher = AITeacher(app.config["OPENAI_API_KEY"])
+aistudent = AIStudent(app.config["OPENAI_API_KEY"])
 
 
 @app.route("/login", methods=["POST"])
@@ -579,11 +585,13 @@ def chat(conversation_uuid):
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400
 
-    conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
 
     if conversation is None:
         if is_valid_uuid(conversation_uuid):
-            new_conversation = Conversation(
+            new_conversation = TeacherAIConversations(
                 uuid=conversation_uuid,
                 teacher_id=user_id,
                 course_id=1,
@@ -616,13 +624,13 @@ def chat(conversation_uuid):
         if not file_content:
             return jsonify({"message": "Unable to read file."}), 400
 
-        faiss_file = TeacherFaiss.query.filter_by(file_id=data["file_id"]).first()
+        faiss_file = TeacherAIFaisses.query.filter_by(file_id=data["file_id"]).first()
 
         if faiss_file is not None:
             index, sentences = aiteacher.load_faiss_index(data["file_id"])
             print(sentences)
             if index is None or sentences is None:
-                faiss_index = TeacherFaiss.query.get(faiss_file.id)
+                faiss_index = TeacherAIFaisses.query.get(faiss_file.id)
                 db.session.delete(faiss_index)
                 db.session.commit()
                 return jsonify({"message": "Unable to read faiss file"}), 400
@@ -635,7 +643,7 @@ def chat(conversation_uuid):
                 print("建立索引失敗，程式結束。")
                 return
 
-            faiss_index = TeacherFaiss(file_id=data["file_id"])
+            faiss_index = TeacherAIFaisses(file_id=data["file_id"])
             db.session.add(faiss_index)
             db.session.commit()
 
@@ -679,6 +687,80 @@ def chat(conversation_uuid):
 
     return jsonify({"answer": answer})
 
+@app.route("/student_chat/<int:course_id>/<int:course_section>", methods=["POST"])
+@jwt_required()
+def student_chat(course_id,course_section ):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "student":
+        user = Student.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden."}), 403
+
+    if not (course_id and course_section) :
+        return jsonify({"message": "The course_id and course_section are required."}), 400
+
+    conversation = StudentAIConversations.query.filter_by(
+        course_id=course_id, course_section=course_section
+    ).first()
+
+    if conversation is None:
+        return jsonify({"message": "This course is not deployed."}), 404
+    
+    if user.course != course_id:
+        return jsonify({"message": "Access forbidden."}), 403
+
+    data = request.json
+    user_input = data.get("user_input", "").strip()
+
+    if not user_input:
+        return jsonify(
+            {"message": "user input are required."}
+        ), 400
+        
+    aistudent.system_context = "您是一位AI教學助手，以下是先前教師和AI助手的對話紀錄，你需要根據這些對話紀錄，回應學生，記住，不要提到「以前的對話紀錄」，改為「根據老師」。現在開始我是學生。"
+
+    conversation, conversation_history = aistudent.load_conversation_history(
+        course_id,
+        course_section,
+        user.id,
+    )
+    
+    if not conversation:
+        return jsonify({"message": "This course is not deployed."}), 400
+
+    messages = [
+        SystemMessage(content=aistudent.system_context),
+        # SystemMessage(content=f"相關上下文：\n\n{context}"),
+    ]
+    teacher_conversation_history = aistudent.load_teacher_conversation_history(course_id)
+
+    for _, q, a, _ in teacher_conversation_history:
+        messages.append(HumanMessage(content=q))
+        messages.append(AIMessage(content=a))
+    
+    messages.append(HumanMessage("以上是教師的對話紀錄"))
+    
+    for _, q, a, _ in conversation_history:
+        messages.append(HumanMessage(content=q))
+        messages.append(AIMessage(content=a))
+
+    messages.append(HumanMessage(user_input))
+
+    answer = aistudent.generate_response(messages)
+    conversation_history.append((user_input, answer))
+
+    aistudent.save_message(conversation.id, user.id, "user", user_input)
+    aistudent.save_message(conversation.id, user.id, "assistant", answer)
+
+    return jsonify({"answer": answer})
+
 
 @app.route("/conversation/<string:conversation_uuid>", methods=["GET"])
 @jwt_required()
@@ -700,7 +782,9 @@ def get_history(conversation_uuid):
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400
 
-    conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
 
     if conversation is None:
         return jsonify({"message": "The UUID of conversation is invalid."}), 400
@@ -744,7 +828,9 @@ def delete_conversation(conversation_uuid):
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400
 
-    conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
 
     if conversation is None:
         return jsonify({"message": "The UUID of conversation is invalid."}), 400
@@ -753,6 +839,13 @@ def delete_conversation(conversation_uuid):
         return jsonify({"message": "Not authorized."}), 401
 
     try:
+        messages = TeacherAIMessages.query.filter_by(
+            conversation_id=conversation.id
+        ).all()
+        for message in messages:
+            db.session.delete(message)
+        db.session.commit()
+
         db.session.delete(conversation)
         db.session.commit()
 
@@ -763,7 +856,7 @@ def delete_conversation(conversation_uuid):
     except Exception as e:
         app.logger.error(f"Error deleting conversation: {e}")
         db.session.rollback()
-        return jsonify({"message": "An error occurred while deleting the student"})
+        return jsonify({"message": "An error occurred while deleting the conversatoin"})
 
 
 @app.route("/list_conversations", methods=["GET"])
@@ -780,11 +873,11 @@ def list_conversations():
         if not user:
             return jsonify({"message": "User not found."}), 404
 
-    conversations = Conversation.query.filter_by(teacher_id=user_id).all()
+    conversations = TeacherAIConversations.query.filter_by(teacher_id=user_id).all()
     conversation_list = []
     for conversation in conversations:
         course = Course.query.filter_by(id=conversation.course_id).first()
-        course_section = Course_sections.query.filter_by(
+        course_section = CourseSections.query.filter_by(
             id=conversation.course_section
         ).first()
         conversation_list.append(
@@ -800,6 +893,60 @@ def list_conversations():
         )
 
     return jsonify({"conversations": conversation_list})
+
+
+@app.route("/deploy_student_llm/<string:conversation_uuid>", methods=["GET"])
+@jwt_required()
+def deploy(conversation_uuid):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
+
+    if not conversation_uuid:
+        return jsonify({"message": "The UUID of conversation is required."}), 400
+
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
+
+    if conversation is None:
+        if is_valid_uuid(conversation_uuid):
+            new_conversation = TeacherAIConversations(
+                uuid=conversation_uuid,
+                teacher_id=user_id,
+                course_id=1,
+                course_section=1,
+            )
+            db.session.add(new_conversation)
+            db.session.commit()
+        else:
+            return jsonify({"message": "The UUID of conversation is invalid."}), 400
+
+    elif conversation.teacher_id != user_id:
+        return jsonify({"message": "Not authorized."}), 401
+
+    course_id = conversation.course_id
+    course_section = conversation.course_section
+    try:
+        new_student_conversation = StudentAIConversations(
+            course_id=course_id, course_section=course_section
+        )
+        db.session.add(new_student_conversation)
+        db.session.commit()
+        return jsonify({"message": "Deploy successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Deploy failed"}), 400
 
 
 @app.route("/register", methods=["POST"])
@@ -1025,7 +1172,9 @@ def group_chat_history():
 
     room = f"{user.course}-{user.group_number}"
     messages = (
-        GroupMessage.query.filter_by(room=room).order_by(GroupMessage.sent_at).all()
+        StudentGroupMessage.query.filter_by(room=room)
+        .order_by(StudentGroupMessage.sent_at)
+        .all()
     )
 
     formatted_history = [
@@ -1077,7 +1226,7 @@ def handle_message(data):
 
     room = f"{user.course}-{user.group_number}"
 
-    message = GroupMessage(
+    message = StudentGroupMessage(
         student_id=user.id, sender=user.name, room=room, message=data
     )
     db.session.add(message)

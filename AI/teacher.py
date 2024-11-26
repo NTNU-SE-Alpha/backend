@@ -11,8 +11,8 @@ from langchain_openai import ChatOpenAI
 from sentence_transformers import SentenceTransformer
 
 from models import (
-    Conversation,
-    Message,
+    TeacherAIConversations,
+    TeacherAIMessages,
     db,
 )
 
@@ -22,7 +22,7 @@ class AITeacher:
         current_dir = pathlib.Path(__file__).parent.absolute()
         self.save_dir = os.path.join(current_dir, "saved_data")
 
-        os.makedirs(self.save_dir, exist_ok=True)
+        # os.makedirs(self.save_dir, exist_ok=True)
 
         print(f"保存目錄路徑: {self.save_dir}")
 
@@ -49,20 +49,20 @@ class AITeacher:
             return "無法生成摘要。"
 
     def load_conversation_history(self, conversation_uuid):
-        conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+        conversation = TeacherAIConversations.query.filter_by(uuid=conversation_uuid).first()
         if not conversation:
             return None, []
 
         messages = (
-            Message.query.filter_by(conversation_id=conversation.id)
-            .order_by(Message.sent_at)
+            TeacherAIMessages.query.filter_by(conversation_id=conversation.id)
+            .order_by(TeacherAIMessages.sent_at)
             .all()
         )
         history = [(msg.id, msg.sender, msg.message, msg.sent_at) for msg in messages]
         return conversation, history
 
     def save_message(self, conversation_id, sender, message):
-        new_message = Message(
+        new_message = TeacherAIMessages(
             conversation_id=conversation_id, sender=sender, message=message
         )
         db.session.add(new_message)

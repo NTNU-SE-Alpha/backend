@@ -2,7 +2,7 @@ from datetime import datetime,timedelta
 
 from app import app, db
 
-from models import Course, Course_sections, Student, Teacher, TeacherFiles
+from models import Course, CourseSections, Student, Teacher, TeacherFiles
 
 
 def init_db():
@@ -117,10 +117,10 @@ def init_db():
         student4 = Student(
             username="41275046H", name="彭尚折", course=3, group_number=1
         )
-        student4.set_password("studentpass4")
+        student4.set_password(" ")
 
         sections = [
-            Course_sections(
+            CourseSections(
                 name=f"Week {sequence}",
                 sequence=sequence,
                 course=course,
