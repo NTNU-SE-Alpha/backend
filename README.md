@@ -8,7 +8,11 @@
 ## 基本設定
 > 請先確認有安裝 Python, MySQL
 
-> 建議使用 venv 或是 conda
+設定 python 3.10 虛擬環境(conda), 請將 myenv 換成自己要的虛擬環境名稱
+```
+conda create -n myenv python=3.10
+conda activate myenv
+```
 
 clone 此專案
 ```
