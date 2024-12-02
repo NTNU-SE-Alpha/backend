@@ -1,11 +1,13 @@
 import hashlib
 import io
 import os
+import uuid
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required
 from flask_migrate import Migrate
+from flask_socketio import SocketIO, join_room, send
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from marshmallow import ValidationError
 from PIL import Image
@@ -13,22 +15,40 @@ from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 
 from AI.teacher import AITeacher
+from AI.student import AIStudent
+
 from config import Config
 from models import (
-    Conversation,
     Course,
-    ImageData,
+    CourseSections,
     Student,
+    StudentAIConversations,
+    StudentAIMessages,
     StudentFiles,
+    StudentGroupMessage,
     Teacher,
-    TeacherFaiss,
+    TeacherAIConversations,
+    TeacherAIFaisses,
+    TeacherAIMessages,
     TeacherFiles,
     db,
 )
 from schemas import LoginSchema, RegisterSchema, UserDataUpdateSchema
 
-ALLOWED_EXTENSIONS = {'pdf'}
-OTHER_ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'webp', 'doc', 'docx', 'txt'}
+ALLOWED_EXTENSIONS = {"pdf"}
+OTHER_ALLOWED_EXTENSIONS = {
+    "pdf",
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "tiff",
+    "webp",
+    "doc",
+    "docx",
+    "txt",
+}
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -38,8 +58,10 @@ migrate = Migrate(app, db)
 
 db.init_app(app)
 jwt = JWTManager(app)
+socketio = SocketIO(app)
 
-aiteacher = AITeacher(app.config['OPENAI_API_KEY'])
+aiteacher = AITeacher(app.config["OPENAI_API_KEY"])
+aistudent = AIStudent(app.config["OPENAI_API_KEY"])
 
 
 @app.route("/login", methods=["POST"])
@@ -80,10 +102,16 @@ def login():
 
     # 回傳使用者的資料
     if user_type == "teacher":
-        user_info = {"id": user.id, "username": user.username, "name": user.name}
+        user_info = {
+            "id": user.id,
+            "user_type": "teacher",
+            "username": user.username,
+            "name": user.name,
+        }
     else:
         user_info = {
             "id": user.id,
+            "user_type": "student",
             "username": user.username,
             "name": user.name,
             "course": user.course,
@@ -111,7 +139,12 @@ def get_user_data():
         if not user:
             return jsonify({"message": "User not found."}), 404
 
-        user_info = {"id": user.id, "username": user.username, "name": user.name}
+        user_info = {
+            "id": user.id,
+            "user_type": "teacher",
+            "username": user.username,
+            "name": user.name,
+        }
 
     elif user_type == "student":
         user = Student.query.get(user_id)
@@ -120,6 +153,7 @@ def get_user_data():
 
         user_info = {
             "id": user.id,
+            "user_type": "student",
             "username": user.username,
             "name": user.name,
             "course": user.course,
@@ -159,9 +193,15 @@ def update_user_data():
             if not user:
                 return jsonify({"message": "User not found."}), 404
 
+            if "old_password" not in validated_data:
+                return jsonify({"message": "Please input your current password"}), 400
+
+            if not user.check_password(validated_data["old_password"]):
+                return jsonify({"message": "Old password is incorrect."}), 400
+
             # 檢查請求是否包含要更改的資料
-            if "password" in validated_data:
-                user.set_password(validated_data["password"])
+            if "new_password" in validated_data:
+                user.set_password(validated_data["new_password"])
 
             db.session.commit()
 
@@ -173,9 +213,15 @@ def update_user_data():
             if not user:
                 return jsonify({"message": "User not found."}), 404
 
+            if "old_password" not in validated_data:
+                return jsonify({"message": "Please input your current password"}), 400
+
+            if not user.check_password(validated_data["old_password"]):
+                return jsonify({"message": "Old password is incorrect."}), 400
+
             # 檢查請求是否包含要更改的資料
-            if "password" in validated_data:
-                user.set_password(validated_data["password"])
+            if "new_password" in validated_data:
+                user.set_password(validated_data["new_password"])
 
             db.session.commit()
 
@@ -268,38 +314,62 @@ def get_course(course_id):
     if course:
         return course.to_dict()
     else:
-        return {"error": "Course not found"}, 404
+        return jsonify({"error": "Course not found"}), 404
 
 
 @app.route("/getSections/<int:course_id>")
+@jwt_required()
 # 取得每週課程資訊
 def get_course_sections(course_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+
     course = Course.query.get(course_id)
     if course:
-        # 檢查該學生是否為課程學生
-        if course.is_student(course_id):
-            sections = course.get_sections()
-            sections_data = [section.to_dict() for section in sections]
-            return jsonify({"sections": sections_data}), 200
+        if user_type == "student":
+            # 檢查該學生是否為課程學生
+            if course.is_student(user_id):
+                sections = course.get_sections()
+                sections_data = [section.to_dict() for section in sections]
+                return jsonify({"sections": sections_data}), 200
+            else:
+                # Return a response if the student is not part of the course
+                return jsonify({"error": "You are not a student of this course"}), 403
+        elif user_type == "teacher":
+            if course.teacher_id == user_id:
+                sections = course.get_sections()
+                sections_data = [section.to_dict() for section in sections]
+                return jsonify({"sections": sections_data}), 200
+            else:
+                # Return a response if the student is not part of the course
+                return jsonify({"error": "You are not a teacher of this course"}), 403
+        else:
+            return jsonify({"error": "Error"}), 403
     else:
-        return {"error": "Course not found"}, 404
+        return jsonify({"error": "Course not found"}), 404
 
 
 @app.route("/getStudents/<int:course_id>")
 def get_students(course_id):
     course = Course.query.get(course_id)
     if course:
-        students = [{'id': student.id, 'username': student.username, 'name': student.name} for student in course.students]
-        return jsonify({'students': students}), 200
+        students = [
+            {"id": student.id, "username": student.username, "name": student.name}
+            for student in course.students
+        ]
+        return jsonify({"students": students}), 200
+
 
 # function: checksum & 儲存資訊到資料庫
 def generate_checksum(filepath):
-    # 計算檔案的 SHA256 
+    # 計算檔案的 SHA256
     sha256_hash = hashlib.sha256()
     with open(filepath, "rb") as f:
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
+
 
 # 學生和教師的資訊分別存到 teacher_files 或 student_files (有更新 models.py)
 def save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
@@ -311,7 +381,7 @@ def save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
             teacher=uploader_id,
             name=filename,
             path=filepath,
-            checksum=checksum
+            checksum=checksum,
         )
     elif uploader_type == "student":
         new_file = StudentFiles(
@@ -319,26 +389,27 @@ def save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
             student=uploader_id,
             name=filename,
             path=filepath,
-            checksum=checksum
+            checksum=checksum,
         )
     else:
         return False
 
     db.session.add(new_file)
     db.session.commit()
-    return True
+    return new_file.id
+
 
 # API: 上傳檔案處理 (更新: 將資訊存入資料庫)
-@app.route('/api/upload_pdf', methods=['POST'])
+@app.route("/api/upload_pdf", methods=["POST"])
 @jwt_required()
 def upload_pdf():
     claims = get_jwt()
     uploader_id = claims.get("user_id")
     uploader_type = claims.get("user_type")
-    course_id = request.args.get("course_id")
+    course_id = request.form.get("course_id")
 
     if not course_id:
-        return jsonify({'error': 'Course ID is required'}), 400
+        return jsonify({"error": "Course ID is required"}), 400
 
     # 檢查是否有文件
     if "file" not in request.files:
@@ -351,26 +422,35 @@ def upload_pdf():
         return jsonify({"error": "No selected file"}), 400
 
     # 檢查檔案是否為 PDF
-    if not file.filename.lower().endswith('.pdf'):
-        return jsonify({'error': 'Only PDF files are allowed'}), 400
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Only PDF files are allowed"}), 400
 
     # 儲存檔案
     filename, filepath = save_file(file, ALLOWED_EXTENSIONS)
     if filename:
         # 呼叫 generate_checksum()
-        checksum = generate_checksum(filepath)
-        
+        # checksum = generate_checksum(filepath)
+
         # 呼叫 save_file_info() 儲存資訊進資料庫中
-        if save_file_info(uploader_id, uploader_type, course_id, filename, filepath, checksum):
-            return jsonify({'message': 'PDF file uploaded successfully', 'filename': filename}), 200
+        file_id = save_file_info(
+            uploader_id, uploader_type, course_id, filename, filepath
+        )
+        if file_id:
+            return jsonify(
+                {
+                    "message": "PDF file uploaded successfully",
+                    "filename": filename,
+                    "file_id": file_id,
+                }
+            ), 200
         else:
-            return jsonify({'error': 'Failed to save file info'}), 500
+            return jsonify({"error": "Failed to save file info"}), 500
     else:
         return jsonify({"error": "File type not allowed"}), 400
 
 
 # 新增其他檔案類型的上傳功能
-@app.route('/api/upload_various_file', methods=['POST'])
+@app.route("/api/upload_various_file", methods=["POST"])
 @jwt_required()
 def upload_various_file():
     claims = get_jwt()
@@ -379,64 +459,76 @@ def upload_various_file():
     class_id = request.form.get("class_id")  # 修改這裡，從 course_id 改為 class_id
 
     if not class_id:
-        return jsonify({'error': 'Class ID is required'}), 400
+        return jsonify({"error": "Class ID is required"}), 400
 
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
 
-    file = request.files['file']
+    file = request.files["file"]
 
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
 
     filename, filepath = save_file(file, OTHER_ALLOWED_EXTENSIONS)
     if filename:
         # 儲存檔案資訊到資料庫
         if save_file_info(uploader_id, uploader_type, class_id, filename, filepath):
-            return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+            return jsonify(
+                {"message": "File uploaded successfully", "filename": filename}
+            ), 200
         else:
-            return jsonify({'error': 'Failed to save file info'}), 500
-    return jsonify({'error': 'File type not allowed'}), 400
+            return jsonify({"error": "Failed to save file info"}), 500
+    return jsonify({"error": "File type not allowed"}), 400
+
 
 # secure_filename:
 def save_file(file, allowed_extensions):
-    if file and '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions:
+    if (
+        file
+        and "." in file.filename
+        and file.filename.rsplit(".", 1)[1].lower() in allowed_extensions
+    ):
         filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         counter = 1
         while os.path.exists(file_path):
             name, ext = os.path.splitext(filename)
             filename = f"{name}_{counter}{ext}"
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             counter += 1
         file.save(file_path)
         return filename, file_path
     return None, None
-    
+
+
 # 下載檔案api : api/download/ 仍在 debug 中
-@app.route('/api/download/<filename>', methods=['GET'])
+@app.route("/api/download/<int:file_id>", methods=["GET"])
 @jwt_required()
-def download_file(filename):
+def download_file(file_id):
     claims = get_jwt()
     user_type = claims.get("user_type")
     user_id = claims.get("user_id")
-    # class_id = request.args.get("class_id")
-    class_id = request.form.get("class_id")
+    course_id = request.form.get("course_id")
 
-    if not class_id:
-        return jsonify({'error': 'Class ID is required'}), 400
+    if not course_id:
+        return jsonify({"error": "Class ID is required"}), 400
 
     if user_type == "teacher":
-        file_record = TeacherFiles.query.filter_by(name=filename, class_id=class_id, teacher=user_id).first()
+        file_record = TeacherFiles.query.filter_by(
+            id=file_id, class_id=course_id, teacher=user_id
+        ).first()
     elif user_type == "student":
-        file_record = StudentFiles.query.filter_by(name=filename, class_id=class_id, student=user_id).first()
+        file_record = StudentFiles.query.filter_by(
+            id=file_id, class_id=course_id, student=user_id
+        ).first()
     else:
-        return jsonify({'error': 'Access forbidden'}), 403
+        return jsonify({"error": "Access forbidden."}), 403
 
     if not file_record or not os.path.exists(file_record.path):
-        return jsonify({'error': 'File not found'}), 404
+        return jsonify({"error": "File not found"}), 404
 
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    return send_file(file_record.path, as_attachment=True)
+
 
 @app.route("/start_conversation", methods=["GET"])
 @jwt_required()
@@ -451,11 +543,27 @@ def start_conversation():
         user = Teacher.query.get(user_id)
         if not user:
             return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
+    # course_id = request.form.get("course_id")
+    # course_section_id = request.form.get("course_section_id")
+    # course_id = 1
+    # course_section_id = 21
 
-    new_conversation = Conversation(teacher_id=user_id)
-    db.session.add(new_conversation)
-    db.session.commit()
-    return jsonify({"uuid": new_conversation.uuid})
+    # new_conversation = Conversation(
+    #     teacher_id=user_id, course_id=course_id, course_section=course_section_id
+    # )
+    # db.session.add(new_conversation)
+    # db.session.commit()
+    return jsonify({"uuid": uuid.uuid4()})
+
+
+def is_valid_uuid(uuid_to_test):
+    try:
+        uuid_obj = uuid.UUID(str(uuid_to_test))
+        return True
+    except ValueError:
+        return False
 
 
 @app.route("/chat/<string:conversation_uuid>", methods=["POST"])
@@ -471,16 +579,30 @@ def chat(conversation_uuid):
         user = Teacher.query.get(user_id)
         if not user:
             return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
 
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400
 
-    conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
 
     if conversation is None:
-        return jsonify({"message": "The UUID of conversation is invalid."}), 400
+        if is_valid_uuid(conversation_uuid):
+            new_conversation = TeacherAIConversations(
+                uuid=conversation_uuid,
+                teacher_id=user_id,
+                course_id=1,
+                course_section=1,
+            )
+            db.session.add(new_conversation)
+            db.session.commit()
+        else:
+            return jsonify({"message": "The UUID of conversation is invalid."}), 400
 
-    if conversation.teacher_id != user_id:
+    elif conversation.teacher_id != user_id:
         return jsonify({"message": "Not authorized."}), 401
 
     data = request.json
@@ -502,28 +624,30 @@ def chat(conversation_uuid):
         if not file_content:
             return jsonify({"message": "Unable to read file."}), 400
 
-        faiss_file = TeacherFaiss.query.filter_by(file_id=data["file_id"]).first()
+        faiss_file = TeacherAIFaisses.query.filter_by(file_id=data["file_id"]).first()
 
         if faiss_file is not None:
             index, sentences = aiteacher.load_faiss_index(data["file_id"])
             print(sentences)
             if index is None or sentences is None:
-                faiss_index = TeacherFaiss.query.get(faiss_file.id)
+                faiss_index = TeacherAIFaisses.query.get(faiss_file.id)
                 db.session.delete(faiss_index)
                 db.session.commit()
                 return jsonify({"message": "Unable to read faiss file"}), 400
         else:
-            index, sentences = aiteacher.build_faiss_index(file_content, data["file_id"])
+            index, sentences = aiteacher.build_faiss_index(
+                file_content, data["file_id"]
+            )
 
             if index is None or sentences is None:
                 print("建立索引失敗，程式結束。")
                 return
 
-            faiss_index = TeacherFaiss(file_id=data["file_id"])
+            faiss_index = TeacherAIFaisses(file_id=data["file_id"])
             db.session.add(faiss_index)
             db.session.commit()
 
-        aiteacher.system_context = f"""您是一位AI教學助手。
+        aiteacher.system_context = """您是一位AI教學助手。
 請基於上述內容來回答問題。如果需要引入新的例子或故事，請確保與原始課程內容保持關聯。"""
 
         relevant_context = aiteacher.search_rag(user_input, index, sentences)
@@ -563,8 +687,82 @@ def chat(conversation_uuid):
 
     return jsonify({"answer": answer})
 
+@app.route("/student_chat/<int:course_id>/<int:course_section>", methods=["POST"])
+@jwt_required()
+def student_chat(course_id,course_section ):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
 
-@app.route("/history/<string:conversation_uuid>", methods=["GET"])
+    if user_type == "student":
+        user = Student.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden."}), 403
+
+    if not (course_id and course_section) :
+        return jsonify({"message": "The course_id and course_section are required."}), 400
+
+    conversation = StudentAIConversations.query.filter_by(
+        course_id=course_id, course_section=course_section
+    ).first()
+
+    if conversation is None:
+        return jsonify({"message": "This course is not deployed."}), 404
+    
+    if user.course != course_id:
+        return jsonify({"message": "Access forbidden."}), 403
+
+    data = request.json
+    user_input = data.get("user_input", "").strip()
+
+    if not user_input:
+        return jsonify(
+            {"message": "user input are required."}
+        ), 400
+        
+    aistudent.system_context = "您是一位AI教學助手，以下是先前教師和AI助手的對話紀錄，你需要根據這些對話紀錄，回應學生，記住，不要提到「以前的對話紀錄」，改為「根據老師」。現在開始我是學生。"
+
+    conversation, conversation_history = aistudent.load_conversation_history(
+        course_id,
+        course_section,
+        user.id,
+    )
+    
+    if not conversation:
+        return jsonify({"message": "This course is not deployed."}), 400
+
+    messages = [
+        SystemMessage(content=aistudent.system_context),
+        # SystemMessage(content=f"相關上下文：\n\n{context}"),
+    ]
+    teacher_conversation_history = aistudent.load_teacher_conversation_history(course_id)
+
+    for _, q, a, _ in teacher_conversation_history:
+        messages.append(HumanMessage(content=q))
+        messages.append(AIMessage(content=a))
+    
+    messages.append(HumanMessage("以上是教師的對話紀錄"))
+    
+    for _, q, a, _ in conversation_history:
+        messages.append(HumanMessage(content=q))
+        messages.append(AIMessage(content=a))
+
+    messages.append(HumanMessage(user_input))
+
+    answer = aistudent.generate_response(messages)
+    conversation_history.append((user_input, answer))
+
+    aistudent.save_message(conversation.id, user.id, "user", user_input)
+    aistudent.save_message(conversation.id, user.id, "assistant", answer)
+
+    return jsonify({"answer": answer})
+
+
+@app.route("/conversation/<string:conversation_uuid>", methods=["GET"])
 @jwt_required()
 def get_history(conversation_uuid):
     claims = get_jwt()
@@ -578,10 +776,15 @@ def get_history(conversation_uuid):
         if not user:
             return jsonify({"message": "User not found."}), 404
 
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
+
     if not conversation_uuid:
         return jsonify({"message": "The UUID of conversation is required."}), 400
 
-    conversation = Conversation.query.filter_by(uuid=conversation_uuid).first()
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
 
     if conversation is None:
         return jsonify({"message": "The UUID of conversation is invalid."}), 400
@@ -608,6 +811,54 @@ def get_history(conversation_uuid):
     return jsonify({"uuid": conversation_uuid, "history": formatted_history})
 
 
+@app.route("/conversation/<string:conversation_uuid>", methods=["DELETE"])
+@jwt_required()
+def delete_conversation(conversation_uuid):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+
+    if not conversation_uuid:
+        return jsonify({"message": "The UUID of conversation is required."}), 400
+
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
+
+    if conversation is None:
+        return jsonify({"message": "The UUID of conversation is invalid."}), 400
+
+    if conversation.teacher_id != user_id:
+        return jsonify({"message": "Not authorized."}), 401
+
+    try:
+        messages = TeacherAIMessages.query.filter_by(
+            conversation_id=conversation.id
+        ).all()
+        for message in messages:
+            db.session.delete(message)
+        db.session.commit()
+
+        db.session.delete(conversation)
+        db.session.commit()
+
+        return jsonify(
+            {"message": f"Conversation with UUID {conversation_uuid} has been deleted."}
+        ), 200
+
+    except Exception as e:
+        app.logger.error(f"Error deleting conversation: {e}")
+        db.session.rollback()
+        return jsonify({"message": "An error occurred while deleting the conversatoin"})
+
+
 @app.route("/list_conversations", methods=["GET"])
 @jwt_required()
 def list_conversations():
@@ -622,62 +873,138 @@ def list_conversations():
         if not user:
             return jsonify({"message": "User not found."}), 404
 
-    conversations = Conversation.query.filter_by(teacher_id=user_id).all()
-
-    conversation_list = [
-        {
-            "uuid": conversation.uuid,
-            "summary": conversation.summary
-            if conversation.summary
-            else "No summary available",
-            "created_at": conversation.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        for conversation in conversations
-    ]
+    conversations = TeacherAIConversations.query.filter_by(teacher_id=user_id).all()
+    conversation_list = []
+    for conversation in conversations:
+        course = Course.query.filter_by(id=conversation.course_id).first()
+        course_section = CourseSections.query.filter_by(
+            id=conversation.course_section
+        ).first()
+        conversation_list.append(
+            {
+                "uuid": conversation.uuid,
+                "course_name": course.name,
+                "course_section": course_section.name,
+                "summary": conversation.summary
+                if conversation.summary
+                else "No summary available",
+                "created_at": conversation.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
 
     return jsonify({"conversations": conversation_list})
 
 
+@app.route("/deploy_student_llm/<string:conversation_uuid>", methods=["GET"])
+@jwt_required()
+def deploy(conversation_uuid):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
 
-@app.route('/register', methods=["POST"])
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
+
+    if not conversation_uuid:
+        return jsonify({"message": "The UUID of conversation is required."}), 400
+
+    conversation = TeacherAIConversations.query.filter_by(
+        uuid=conversation_uuid
+    ).first()
+
+    if conversation is None:
+        if is_valid_uuid(conversation_uuid):
+            new_conversation = TeacherAIConversations(
+                uuid=conversation_uuid,
+                teacher_id=user_id,
+                course_id=1,
+                course_section=1,
+            )
+            db.session.add(new_conversation)
+            db.session.commit()
+        else:
+            return jsonify({"message": "The UUID of conversation is invalid."}), 400
+
+    elif conversation.teacher_id != user_id:
+        return jsonify({"message": "Not authorized."}), 401
+
+    course_id = conversation.course_id
+    course_section = conversation.course_section
+    try:
+        new_student_conversation = StudentAIConversations(
+            course_id=course_id, course_section=course_section
+        )
+        db.session.add(new_student_conversation)
+        db.session.commit()
+        return jsonify({"message": "Deploy successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Deploy failed"}), 400
+
+
+@app.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
 
     # 檢查必要填寫的欄位
-    if not data or "username" not in data or "password" not in data or "user_type" not in data:
-        return jsonify({"message": "Username, password, and user_type are required."}), 400
+    if (
+        not data
+        or "username" not in data
+        or "password" not in data
+        or "user_type" not in data
+    ):
+        return jsonify(
+            {"message": "Username, password, and user_type are required."}
+        ), 400
 
     schema = RegisterSchema()
     try:
         validated_data = schema.load(data)
 
         # 檢查 username 是否重複
-        teacher_check = Teacher.query.filter_by(username=validated_data["username"]).first()
-        student_check = Student.query.filter_by(username=validated_data["username"]).first()
+        teacher_check = Teacher.query.filter_by(
+            username=validated_data["username"]
+        ).first()
+        student_check = Student.query.filter_by(
+            username=validated_data["username"]
+        ).first()
 
         if teacher_check or student_check:
             return jsonify({"message": "Username already exists."}), 400
 
         # 檢查密碼是否符合規範 (長度不小於6)
         if len(validated_data["password"]) < 6:
-            return jsonify({"message": "Password must be at least 8 characters long."}), 400
+            return jsonify(
+                {"message": "Password must be at least 8 characters long."}
+            ), 400
 
         # 密碼加密
         hashed_password = generate_password_hash(validated_data["password"])
 
         # 儲存使用者至資料庫
         if data["user_type"] == "teacher":
-            if validated_data['group']:
-                return jsonify({"message": "only user_type is student have group."}), 400
+            if validated_data["group"]:
+                return jsonify(
+                    {"message": "only user_type is student have group."}
+                ), 400
             # 檢查是否有提供教師的名字
             if not validated_data.get("name"):
                 return jsonify({"message": "Teacher name is required."}), 400
-            
+
             # 檢查是否有提供有效的 course 名稱
             course_name = data.get("course")
             if not course_name:
-                return jsonify({"message": "Course name is required for students."}), 400
-            
+                return jsonify(
+                    {"message": "Course name is required for students."}
+                ), 400
+
             # 從 Course 表中找到對應的課程
             course = Course.query.filter_by(name=course_name).first()
             if not course:
@@ -687,7 +1014,7 @@ def register():
             new_user = Teacher(
                 username=validated_data["username"],
                 name=validated_data["name"],
-                password_hash=hashed_password
+                password_hash=hashed_password,
             )
 
             # 若course先存在, 老師選課程時自動加入
@@ -701,7 +1028,9 @@ def register():
             # 檢查是否有提供有效的 course 名稱
             course_name = data.get("course")
             if not course_name:
-                return jsonify({"message": "Course name is required for students."}), 400
+                return jsonify(
+                    {"message": "Course name is required for students."}
+                ), 400
 
             # 從 Course 表中找到對應的課程
             course = Course.query.filter_by(name=course_name).first()
@@ -714,7 +1043,7 @@ def register():
                 name=validated_data.get("name"),  # 假設學生有名字這個欄位
                 group_number=validated_data.get("group", 1),  # 默認組號為 1
                 password_hash=hashed_password,
-                course=course.id  # 設置為 Course 表的 id
+                course=course.id,  # 設置為 Course 表的 id
             )
         else:
             return jsonify({"message": "Invalid user type."}), 400
@@ -731,62 +1060,7 @@ def register():
         return jsonify({"message": str(e)}), 500
 
 
-if __name__ == "__main__":
-    if not os.path.exists(app.config["UPLOAD_FOLDER"]):
-        os.makedirs(app.config["UPLOAD_FOLDER"])
-
-    if not os.path.exists(aiteacher.save_dir):
-        os.makedirs(aiteacher.save_dir)
-
-    app.run(debug=True)
-
-@app.route('/upload/<int:course_id>', methods=['POST'])
-def upload_course_image(course_id):
-    course = Course.query.get(course_id)
-    if not course:
-        return jsonify({"error": "Course not found"}), 404
-    
-    if 'image' not in request.files:
-        return jsonify({"error": "No image file found"}), 400
-    
-    image_file = request.files['image']
-
-    if image_file.content_type not in ['image/jpeg', 'image/png']:
-        return jsonify({"error": "Invalid image type, only JPEG and PNG are allowed"}), 400
-    
-    file_size = len(image_file.read())
-    image_file.seek(0)
-    if image_file.content_type == 'image/jpeg' and not (20 * 1024 <= file_size <= 50 * 1024):
-        return jsonify({"error": "JPEG image size must be between 20-50 KB"}), 400
-    elif image_file.content_type == 'image/png' and not (50 * 1024 <= file_size <= 100 * 1024):
-        return jsonify({"error": "PNG image size must be between 50-100 KB"}), 400
-    
-    image = Image.open(image_file)
-    if image.size != (269, 179):
-        return jsonify({"error": "Image dimensions must be 269x179 pixels"}), 400
-    
-    img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format=image.format)
-    img_byte_arr = img_byte_arr.getvalue()
-    
-    new_image = ImageData(image=img_byte_arr)
-    db.session.add(new_image)
-    db.session.commit()
-    
-    course.image_id = new_image.id
-    db.session.commit()
-    
-    return jsonify({"success": "Image uploaded and linked to course successfully"}), 200
-
-@app.route('/get_image/<int:course_id>', methods=['GET'])
-def get_course_image(course_id):
-    course = Course.query.get(course_id)
-    if not course or not course.image:
-        return jsonify({"error": "Image not found"}), 404
-    
-    return (course.image.image, 200, {'Content-Type': 'image/jpeg'})
-
-@app.route('/add_favorite/<int:course_id>')
+@app.route("/toggle_favorite/<int:course_id>", methods=["PUT"])
 @jwt_required()
 def add_favorite(course_id):
     claims = get_jwt()
@@ -801,11 +1075,15 @@ def add_favorite(course_id):
         course = Course.query.filter_by(id=course_id, teacher_id=user.id).first()
         if not course:
             return jsonify({"error": "Course not found or not owned by teacher"}), 404
-        course.is_favorite = True
+        if course.is_favorite:
+            course.is_favorite = False
+        else:
+            course.is_favorite = True
         db.session.commit()
-        return jsonify({"success": "Course marked as favorite"}), 200
+        return jsonify({"success": "Course favorite toggled"}), 200
 
-@app.route('/favorites', methods=['GET'])
+
+@app.route("/favorites", methods=["GET"])
 @jwt_required()
 def get_favorites():
     claims = get_jwt()
@@ -824,7 +1102,8 @@ def get_favorites():
             favorite_list.append(c)
         return jsonify({"favorites": favorite_list}), 200
 
-@app.route('/courses/<int:course_id>', methods=["PUT"])
+
+@app.route("/courses/<int:course_id>", methods=["PUT"])
 # 處理教師變更課程資料
 @jwt_required()
 def update_course_data():
@@ -836,7 +1115,7 @@ def update_course_data():
     # 檢查使用者是否為老師
     if user_type != "teacher":
         return jsonify({"message": "Access forbidden: Teachers only."}), 403
-    
+
     # 檢查課程是否存在
     course = Course.query.get("course_id")
     if not course:
@@ -844,32 +1123,131 @@ def update_course_data():
 
     # 檢查該課程是否屬於該老師
     if course.teacher_id != user_id:
-        return jsonify({"message": "Access forbidden: Only the owner teacher can edit this course."}), 403
-    
+        return jsonify(
+            {
+                "message": "Access forbidden: Only the owner teacher can edit this course."
+            }
+        ), 403
+
     data = request.get_json()
 
-    #更新課程資訊
-    if 'name' in data:
-        course.name = data['name']
-    if 'teacher_id' in data:
-        course.teacher_id = data['teacher_id']
-    if 'weekday' in data:
-        course.weekday = data['weekday']
-    if 'semester' in data:
-        course.semester = data['semester']
-    if 'archive' in data:
-        course.archive = data['archive']
-    if 'image_id' in data:
-        course.image_id = data['image_id']
-    if 'is_favorite' in data:
-        course.is_favorite = data['is_favorite']
-    
+    # 更新課程資訊
+    if "name" in data:
+        course.name = data["name"]
+    if "teacher_id" in data:
+        course.teacher_id = data["teacher_id"]
+    if "weekday" in data:
+        course.weekday = data["weekday"]
+    if "semester" in data:
+        course.semester = data["semester"]
+    if "archive" in data:
+        course.archive = data["archive"]
+    if "image_id" in data:
+        course.image_id = data["image_id"]
+    if "is_favorite" in data:
+        course.is_favorite = data["is_favorite"]
+
     try:
         db.session.commit()
-        
+
         return jsonify({"message": "Course updated successfully"}), 200
-    
+
     except Exception as e:
         app.logger.error(f"Error updating course: {e}")
         db.session.rollback()
         return jsonify({"message": "An error occurred while updating the course"}), 500
+
+
+@app.route("/group_chat_history", methods=["GET"])
+@jwt_required()
+def group_chat_history():
+    claims = get_jwt()
+    user_id = claims.get("user_id")
+    user_type = claims.get("user_type")
+    if user_type != "student":
+        return jsonify({"message": "Access forbidden: Studnets only."}), 403
+    user = Student.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    room = f"{user.course}-{user.group_number}"
+    messages = (
+        StudentGroupMessage.query.filter_by(room=room)
+        .order_by(StudentGroupMessage.sent_at)
+        .all()
+    )
+
+    formatted_history = [
+        {
+            "id": message.id,
+            "student_id": message.student_id,
+            "username": message.sender,
+            "message": message.message,
+            "sent_at": message.sent_at.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        for message in messages
+    ]
+    return jsonify(
+        {
+            "course": Course.query.filter_by(id=user.course).first().name,
+            "group_number": user.group_number,
+            "history": formatted_history,
+        }
+    )
+
+
+@socketio.on("join_group_chat")
+@jwt_required()
+def handle_join(data):
+    claims = get_jwt()
+    user_id = claims.get("user_id")
+    user_type = claims.get("user_type")
+    if user_type != "student":
+        return jsonify({"message": "Access forbidden: Studnets only."}), 403
+    user = Student.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+    room = f"{user.course}-{user.group_number}"
+
+    join_room(room)
+
+
+@socketio.on("message")
+@jwt_required()
+def handle_message(data):
+    claims = get_jwt()
+    user_id = claims.get("user_id")
+    user_type = claims.get("user_type")
+    if user_type != "student":
+        return jsonify({"message": "Access forbidden: Studnets only."}), 403
+    user = Student.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    room = f"{user.course}-{user.group_number}"
+
+    message = StudentGroupMessage(
+        student_id=user.id, sender=user.name, room=room, message=data
+    )
+    db.session.add(message)
+    db.session.commit()
+
+    send(
+        {
+            "student_id": user.id,
+            "sender": user.name,
+            "message": data,
+            "sent_at": message.sent_at.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+        room=room,
+    )
+
+
+if __name__ == "__main__":
+    if not os.path.exists(app.config["UPLOAD_FOLDER"]):
+        os.makedirs(app.config["UPLOAD_FOLDER"])
+
+    if not os.path.exists(aiteacher.save_dir):
+        os.makedirs(aiteacher.save_dir)
+
+    app.run(debug=True)

@@ -1,7 +1,8 @@
+import uuid
+from datetime import datetime
+
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
-from datetime import datetime
-import uuid
 
 db = SQLAlchemy()
 
@@ -53,13 +54,14 @@ class Course(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
     students = db.relationship("Student", backref=db.backref("courses", lazy=True))
     sections = db.relationship(
-        "Course_sections", backref=db.backref("courses", lazy=True)
+        "CourseSections", backref=db.backref("courses", lazy=True)
     )
     weekday = db.Column(db.String(20), nullable=False)
     semester = db.Column(db.String(20), nullable=False)
     archive = db.Column(db.Boolean, default=False, nullable=False)
-    image_id = db.Column(db.Integer, db.ForeignKey('image_data.id'))
     is_favorite = db.Column(db.Boolean, default=False)
+
+    conversations = db.relationship("TeacherAIConversations", backref="course", lazy=True)
 
     # 將資料轉為 dict
     def to_dict(self):
@@ -73,12 +75,13 @@ class Course(db.Model):
             "weekday": self.weekday,
             "semester": self.semester,
             "archive": self.archive,
+            "is_favorite": self.is_favorite,
         }
 
     def get_sections(self):
         return (
-            Course_sections.query.filter_by(course=self.id)
-            .order_by(Course_sections.sequence)
+            CourseSections.query.filter_by(course=self.id)
+            .order_by(CourseSections.sequence)
             .all()
         )
 
@@ -86,12 +89,13 @@ class Course(db.Model):
         return any(student.id == user_id for student in self.students)
 
 
-class Course_sections(db.Model):
+class CourseSections(db.Model):
     __tablename__ = "course_sections"
     id = db.Column(db.Integer, primary_key=True)
     sequence = db.Column(db.Integer)
-    name = db.Column(db.String(20), nullable=False, unique=True)
+    name = db.Column(db.String(20), nullable=False)
     course = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    content = db.Column(db.String(2000), nullable=True)
     start_date = db.Column(db.DateTime, nullable=False)
     end_date = db.Column(db.DateTime, nullable=False)
     publish_date = db.Column(db.DateTime, nullable=False)
@@ -102,59 +106,102 @@ class Course_sections(db.Model):
             "sequence": self.sequence,
             "name": self.name,
             "course_id": self.course,
+            "content": self.content,
             "start_date": self.start_date.isoformat(),
             "end_date": self.end_date.isoformat(),
             "publish_date": self.publish_date.isoformat(),
         }
 
-class ImageData(db.Model):
+
+class TeacherAIConversations(db.Model):
+    __tablename__ = "teacher_ai_conversations"
     id = db.Column(db.Integer, primary_key=True)
-    image = db.Column(db.LargeBinary, nullable=False)
-    course = db.relationship('Courses', backref=db.backref('image', uselist=False))
-    
-class Conversation(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    uuid = db.Column(
-        db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
-    )
+    # uuid = db.Column(
+    #     db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
+    # )
+    uuid = db.Column(db.String(36), unique=True, nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    course_section = db.Column(db.Integer, nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    summary = db.Column(db.Text, nullable=True)  # New field to store the summary
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    summary = db.Column(db.Text, nullable=True)
 
 
-class Message(db.Model):
+class TeacherAIMessages(db.Model):
+    __tablename__ = "teacher_ai_messages"
     id = db.Column(db.Integer, primary_key=True)
     conversation_id = db.Column(
-        db.Integer, db.ForeignKey("conversation.id"), nullable=False
+        db.Integer, db.ForeignKey("teacher_ai_conversations.id"), nullable=False
     )
-    sender = db.Column(db.String(10), nullable=False)  # 'user' or 'ai'
+    sender = db.Column(db.String(10), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sent_at = db.Column(db.DateTime, default=datetime.now())
 
     conversation = db.relationship(
-        "Conversation", backref=db.backref("messages", lazy=True)
+        "TeacherAIConversations", backref=db.backref("teacher_ai_messages", lazy=True)
     )
 
-class TeacherFaiss(db.Model):
+class StudentAIConversations(db.Model):
+    __tablename__ = "student_ai_conversations"
+    id = db.Column(db.Integer, primary_key=True)
+    # uuid = db.Column(
+    #     db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4())
+    # )
+    # uuid = db.Column(db.String(36), unique=True, nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    course_section = db.Column(db.Integer, nullable=False)
+    # student = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    # created_at = db.Column(db.DateTime, default=datetime.now())
+    # summary = db.Column(db.Text, nullable=True)
+
+
+class StudentAIMessages(db.Model):
+    __tablename__ = "student_ai_messages"
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey("student_ai_conversations.id"), nullable=False
+    )
+    sender = db.Column(db.String(10), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.now())
+
+    conversation = db.relationship(
+        "StudentAIConversations", backref=db.backref("student_ai_messages", lazy=True)
+    )
+
+class TeacherAIFaisses(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     file_id = db.Column(db.Integer, db.ForeignKey("teacher_files.id"), nullable=False)
+
 
 # Upload files: Teachers
 class TeacherFiles(db.Model):
     __tablename__ = "teacher_files"
     id = db.Column(db.Integer, primary_key=True)
-    class_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
-    teacher = db.Column(db.Integer, db.ForeignKey('teachers.id'), nullable=False)
+    class_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    teacher = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
-    
+
+
 # Upload files: Students
 class StudentFiles(db.Model):
     __tablename__ = "student_files"
     id = db.Column(db.Integer, primary_key=True)
     class_id = db.Column(db.Integer, nullable=False)
-    student = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    student = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
+
+
+class StudentGroupMessage(db.Model):
+    __tablename__ = "group_message"
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    sender = db.Column(db.String(10), nullable=False)
+    room = db.Column(db.String(120), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.now())

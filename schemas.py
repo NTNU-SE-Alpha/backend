@@ -13,5 +13,6 @@ class RegisterSchema(Schema):
     group = fields.Int(missing=1)
     
 class UserDataUpdateSchema(Schema):
-    password = fields.Str(validate=validate.Length(min=6))
+    old_password = fields.Str(validate=validate.Length(min=6))
+    new_password = fields.Str(validate=validate.Length(min=6))
 
