@@ -1,0 +1,11 @@
+id,name,teacher_id,weekday,semester,archive,is_favorite
+1,軟體工程,1,Wed,113-1,False,False
+2,電子學,2,Thu,113-1,False,False
+3,程式設計(一),1,Tue,113-1,False,False
+4,資訊安全,1,Mon,113-1,False,False
+5,高等資安攻防演練,1,Fri,113-1,False,False
+6,類比積體電路導論,2,Thu,113-1,False,True
+7,電機專題製作,2,Fri,113-1,False,True
+8,數位系統,3,Mon,113-1,False,False
+9,資料結構,3,Tue,113-1,False,False
+10,計算機概論,4,Thu,113-1,False,False

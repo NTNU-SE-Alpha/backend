@@ -8,5 +8,5 @@ migrations/
 __pycache__/
 venv/
 
-
-AI/saved_data/
+# Uploaded file
+uploads/
