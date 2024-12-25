@@ -7,9 +7,9 @@ from app.extensions import socketio
 from app.config import DevelopmentConfig, ProductionConfig, TestingConfig
 from app.models import db
 
+app = Flask(__name__)
 
 def create_app(environment="development"):
-    app = Flask(__name__)
     if environment == "development":
         app.config.from_object(DevelopmentConfig)
     elif environment == "production":

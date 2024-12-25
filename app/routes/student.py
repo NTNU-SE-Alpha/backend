@@ -38,10 +38,10 @@ def delete_student(student_id):
         return jsonify({"message": "An error occurred while deleting the student"})
 
 
-@bp.route("/students/<int:student_id>/group/<int:group_id>", methods=["PUT"])
+@bp.route("/students/<int:student_id>/group/<int:group_num>", methods=["PUT"])
 # 處理小組變更
 @jwt_required()
-def change_student_group(student_id, group_id):
+def change_student_group(student_id, group_num):
     # 從 JWT Token 中取得資料(claims)
     claims = get_jwt()
     user_type = claims.get("user_type")
@@ -58,13 +58,13 @@ def change_student_group(student_id, group_id):
             return jsonify({"message": "Student not found."}), 404
 
         # 修改學生小組
-        student.group_number = group_id
+        student.group_number = group_num
 
         db.session.commit()
 
         return jsonify(
             {
-                "message": f"The group of student with ID {student_id} has been changed to {group_id}."
+                "message": f"The group of student with ID {student_id} has been changed to {group_num}."
             }
         ), 200
 

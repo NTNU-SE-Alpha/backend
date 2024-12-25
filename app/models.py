@@ -6,7 +6,6 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
 
-
 class Teacher(db.Model):
     __tablename__ = "teachers"
 
@@ -80,7 +79,7 @@ class Course(db.Model):
 
     def get_sections(self):
         return (
-            CourseSections.query.filter_by(course=self.id)
+            CourseSections.query.filter_by(course_id=self.id)
             .order_by(CourseSections.sequence)
             .all()
         )
@@ -205,3 +204,12 @@ class StudentGroupMessage(db.Model):
     room = db.Column(db.String(120), nullable=False)
     message = db.Column(db.Text, nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.now())
+
+class GroupAudioFiles(db.Model):
+    __tablename__ = "group_audio_files"
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    path = db.Column(db.String(255), nullable=False)
+    checksum = db.Column(db.String(64), nullable=False)

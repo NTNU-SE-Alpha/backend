@@ -19,7 +19,6 @@ def generate_checksum(filepath):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
-
 # 學生和教師的資訊分別存到 teacher_files 或 student_files (有更新 models.py)
 def save_file_info(uploader_id, uploader_type, course_id, filename, filepath):
     checksum = generate_checksum(filepath)
@@ -46,6 +45,25 @@ def save_file_info(uploader_id, uploader_type, course_id, filename, filepath):
     db.session.add(new_file)
     db.session.commit()
     return new_file.id
+
+# secure_filename:
+def save_file(file, allowed_extensions):
+    if (
+        file
+        and "." in file.filename
+        and file.filename.rsplit(".", 1)[1].lower() in allowed_extensions
+    ):
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
+        counter = 1
+        while os.path.exists(file_path):
+            name, ext = os.path.splitext(filename)
+            filename = f"{name}_{counter}{ext}"
+            file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
+            counter += 1
+        file.save(file_path)
+        return filename, file_path
+    return None, None
 
 
 # API: 上傳檔案處理 (更新: 將資訊存入資料庫)
@@ -130,24 +148,45 @@ def upload_various_file():
     return jsonify({"error": "File type not allowed"}), 400
 
 
-# secure_filename:
-def save_file(file, allowed_extensions):
-    if (
-        file
-        and "." in file.filename
-        and file.filename.rsplit(".", 1)[1].lower() in allowed_extensions
-    ):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
-        counter = 1
-        while os.path.exists(file_path):
-            name, ext = os.path.splitext(filename)
-            filename = f"{name}_{counter}{ext}"
-            file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
-            counter += 1
-        file.save(file_path)
-        return filename, file_path
-    return None, None
+# # 上傳小組討論錄音檔
+# @bp.route("/api/upload_group_audio", methods=["POST"])
+# @jwt_required()
+# def upload_group_audio(course_id, group_num):
+#     claims = get_jwt()
+#     uploader_id = claims.get("user_id")
+#     uploader_type = claims.get("user_type")
+#     course_id = request.form.get("course_id")
+#     gruop_num = request.form.get("gruop_num")
+    
+#     if not course_id:
+#         return jsonify({"error": "Class ID is required"}), 400
+
+#     if not gruop_num:
+#         return jsonify({"error": "Group number is required"}), 400
+
+
+    
+#     if "file" not in request.files:
+#         return jsonify({"error": "No file part"}), 400
+
+#     file = request.files["file"]
+
+#     if file.filename == "":
+#         return jsonify({"error": "No selected file"}), 400
+
+
+#     filename, filepath = save_file(file, current_app.config['OTHER_ALLOWED_EXTENSIONS'])
+#     if filename:
+#         # 儲存檔案資訊到資料庫
+#         if save_file_info(uploader_id, uploader_type, course_id, filename, filepath):
+#             return jsonify(
+#                 {"message": "File uploaded successfully", "filename": filename}
+#             ), 200
+#         else:
+#             return jsonify({"error": "Failed to save file info"}), 500
+#     return jsonify({"error": "File type not allowed"}), 400
+
+
 
 
 # 下載檔案api : api/download/ 仍在 debug 中

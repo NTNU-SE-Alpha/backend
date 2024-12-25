@@ -1,6 +1,6 @@
 import csv
 from datetime import datetime
-from app import app, db
+from app import create_app, db
 from app.models import Course, CourseSections, Student, Teacher, TeacherFiles
 
 
@@ -8,8 +8,8 @@ def read_csv(file_path):
     with open(file_path, mode="r", encoding="utf-8") as file:
         return list(csv.DictReader(file))
 
-
 def init_db():
+    app = create_app("development")
     with app.app_context():
         db.drop_all()
         db.create_all()
