@@ -104,7 +104,7 @@ class CourseSections(db.Model):
             "id": self.id,
             "sequence": self.sequence,
             "name": self.name,
-            "course_id": self.course,
+            "course_id": self.course_id,
             "content": self.content,
             "start_date": self.start_date.isoformat(),
             "end_date": self.end_date.isoformat(),
