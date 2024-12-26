@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt
-from app.models import Course, Teacher, db
-from marshmallow import ValidationError
+from app.models import Course, Teacher, db, CourseSections
+from datetime import datetime
 
 bp = Blueprint("course", __name__)
 
@@ -45,40 +45,6 @@ def get_course(course_id):
         return course.to_dict()
     else:
         return jsonify({"error": "Course not found"}), 404
-
-
-@bp.route("/getSections/<int:course_id>")
-@jwt_required()
-# 取得每週課程資訊
-def get_course_sections(course_id):
-    claims = get_jwt()
-    user_type = claims.get("user_type")
-    user_id = claims.get("user_id")
-
-    course = Course.query.get(course_id)
-    if course:
-        if user_type == "student":
-            # 檢查該學生是否為課程學生
-            if course.is_student(user_id):
-                sections = course.get_sections()
-                sections_data = [section.to_dict() for section in sections]
-                return jsonify({"sections": sections_data}), 200
-            else:
-                # Return a response if the student is not part of the course
-                return jsonify({"error": "You are not a student of this course"}), 403
-        elif user_type == "teacher":
-            if course.teacher_id == user_id:
-                sections = course.get_sections()
-                sections_data = [section.to_dict() for section in sections]
-                return jsonify({"sections": sections_data}), 200
-            else:
-                # Return a response if the student is not part of the course
-                return jsonify({"error": "You are not a teacher of this course"}), 403
-        else:
-            return jsonify({"error": "Error"}), 403
-    else:
-        return jsonify({"error": "Course not found"}), 404
-
 
 @bp.route("/getStudents/<int:course_id>")
 def get_students(course_id):
@@ -192,3 +158,87 @@ def update_course_data():
         bp.logger.error(f"Error updating course: {e}")
         db.session.rollback()
         return jsonify({"message": "An error occurred while updating the course"}), 500
+
+
+@bp.route("/getSections/<int:course_id>", methods=["GET"])
+@jwt_required()
+# 取得每週課程資訊
+def get_course_sections(course_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+
+    course = Course.query.get(course_id)
+    if course:
+        if user_type == "student":
+            # 檢查該學生是否為課程學生
+            if course.is_student(user_id):
+                sections = course.get_sections()
+                sections_data = [section.to_dict() for section in sections]
+                return jsonify({"sections": sections_data}), 200
+            else:
+                # Return a response if the student is not part of the course
+                return jsonify({"error": "You are not a student of this course"}), 403
+        elif user_type == "teacher":
+            if course.teacher_id == user_id:
+                sections = course.get_sections()
+                sections_data = [section.to_dict() for section in sections]
+                return jsonify({"sections": sections_data}), 200
+            else:
+                # Return a response if the student is not part of the course
+                return jsonify({"error": "You are not a teacher of this course"}), 403
+        else:
+            return jsonify({"error": "Error"}), 403
+    else:
+        return jsonify({"error": "Course not found"}), 404
+
+
+@bp.route("/deleteSection/<int:course_id>/<int:course_section_id>", methods=["DELETE"])
+@jwt_required()
+def delete_course_section(course_id, course_section_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({"error": "Course not found"}), 404
+
+    if user_type != "teacher":
+        return jsonify({"error": "Access forbidden"}), 403
+
+    if course.teacher_id != user_id:
+        return jsonify({"error": "You are not a teacher of this course"}), 403
+
+    course_section = CourseSections.query.filter_by(id=course_section_id, course_id=course_id).first()
+    if not course_section:
+        return jsonify({"error": "Course section not found"}), 404
+
+    try:
+        db.session.delete(course_section)
+        db.session.commit()
+        return jsonify({"message": "Course section deleted successfully"}), 200
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "An error occurred while deleting the course section"}), 500
+
+# Create a Course Section
+@bp.route("/newSection/<int:course_id>", methods=["POST"])
+def create_course_section(course_id):
+    data = request.get_json()
+    try:
+        new_course_section = CourseSections(
+            sequence=data['sequence'],
+            name=data['name'],
+            course_id=course_id,
+            content=data.get('content'),
+            start_date=datetime.fromisoformat(data['start_date']),
+            end_date=datetime.fromisoformat(data['end_date']),
+            publish_date=datetime.fromisoformat(data['publish_date'])
+        )
+        db.session.add(new_course_section)
+        db.session.commit()
+        return jsonify(new_course_section.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return  jsonify({"message": f"Error occured while creating new course section: {e}"}), 500

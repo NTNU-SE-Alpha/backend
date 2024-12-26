@@ -355,9 +355,8 @@ def delete_conversation(conversation_uuid):
         ), 200
 
     except Exception as e:
-        bp.logger.error(f"Error deleting conversation: {e}")
         db.session.rollback()
-        return jsonify({"message": "An error occurred while deleting the conversatoin"})
+        return jsonify({"message": "An error occurred while deleting the conversatoin"}), 500
 
 
 @bp.route("/list_conversations", methods=["GET"])
@@ -543,9 +542,8 @@ def generate_feedback():
         return jsonify({"message": "Feedback generated sucessfully."})
         
     except Exception as e:
-        bp.logger.error(f"Error generating feedback: {e}")
         db.session.rollback()
-        return jsonify({"message": "An error occurred while generating the feedback"})
+        return jsonify({"message": "An error occurred while generating the feedback"}), 500
     
 @bp.route("/list_feedback/<int:course_id>/<int:course_section_id>", methods=["GET"])
 @jwt_required()
@@ -600,7 +598,6 @@ def list_feedback(course_id, course_section_id):
         return jsonify(feedback_list),200 
         
     except Exception as e:
-        bp.logger.error(f"Error fetching feedback: {e}")
         db.session.rollback()
-        return jsonify({"message": "An error occurred while fetching the feedback"})
+        return jsonify({"message": "An error occurred while fetching the feedback"}), 500
     
