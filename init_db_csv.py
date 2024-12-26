@@ -63,7 +63,7 @@ def init_db():
                 name=row["name"],
                 sequence=int(row["sequence"]),
                 course_id=row["course_id"],
-                content=row["content"],
+                content=row["content"].replace("\\n", "\n"),
                 start_date=datetime.strptime(row["start_date"], "%Y-%m-%d %H:%M:%S"),
                 end_date=datetime.strptime(row["end_date"], "%Y-%m-%d %H:%M:%S"),
                 publish_date=datetime.strptime(
