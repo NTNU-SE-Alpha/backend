@@ -242,3 +242,30 @@ def create_course_section(course_id):
     except Exception as e:
         db.session.rollback()
         return  jsonify({"message": f"Error occured while creating new course section: {e}"}), 500
+    
+@bp.route("/editSection/<int:course_id>/<int:course_section_id>", methods=["PUT"])
+def update_course_section(course_id, course_section_id):
+    data = request.get_json()
+    section = CourseSections.query.get(course_section_id)
+    if not section:
+        return jsonify({"message": "Course section not found."}), 404 
+    try:
+        if 'sequence' in data:
+            section.sequence = data.get('sequence', section.sequence)
+        if 'name' in data:
+            section.name = data.get('name', section.name)
+        if'content' in data:
+            section.content = data.get('content', section.content)
+        if 'start_date' in data:
+            section.start_date = datetime.fromisoformat(data['start_date'])
+        if 'end_date' in data:
+            section.end_date = datetime.fromisoformat(data['end_date'])
+        if 'publish_date' in data:
+            section.publish_date = datetime.fromisoformat(data['publish_date'])
+        
+        db.session.commit()
+        return jsonify(section.to_dict()), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error while editing course seciton. {e}"}), 500 

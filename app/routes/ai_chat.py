@@ -376,15 +376,15 @@ def list_conversations():
     conversations = TeacherAIConversations.query.filter_by(teacher_id=user_id).all()
     conversation_list = []
     for conversation in conversations:
-        course = Course.query.filter_by(id=conversation.course_id).first()
-        course_section = CourseSections.query.filter_by(
-            id=conversation.course_section
-        ).first()
+        # course = Course.query.filter_by(id=conversation.course_id).first()
+        # course_section = CourseSections.query.filter_by(
+        #     id=conversation.course_section
+        # ).first()
         conversation_list.append(
             {
                 "uuid": conversation.uuid,
-                "course_name": course.name,
-                "course_section": course_section.name,
+                "course_id": conversation.course_id,
+                "course_section_id": conversation.course_section,
                 "summary": conversation.summary
                 if conversation.summary
                 else "No summary available",
