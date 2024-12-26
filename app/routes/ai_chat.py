@@ -70,6 +70,7 @@ def chat(conversation_uuid):
     claims = get_jwt()
     user_type = claims.get("user_type")
     user_id = claims.get("user_id")
+    data = request.json
     if not user_type or not user_id:
         return jsonify({"message": "Invalid token."}), 400
 
@@ -88,12 +89,20 @@ def chat(conversation_uuid):
     ).first()
 
     if conversation is None:
+        course_id = data.get("course_id")
+        course_section_id = data.get("course_section_id")
+        
+        if not course_id:
+            return jsonify({"message": "The ID of course is required."}), 400 
+        if not course_section_id:
+            return jsonify({"message": "The ID of course section is required."}), 400 
+        
         if is_valid_uuid(conversation_uuid):
             new_conversation = TeacherAIConversations(
                 uuid=conversation_uuid,
                 teacher_id=user_id,
-                course_id=1,
-                course_section=1,
+                course_id=course_id,
+                course_section=course_section_id,
             )
             db.session.add(new_conversation)
             db.session.commit()
@@ -103,7 +112,7 @@ def chat(conversation_uuid):
     elif conversation.teacher_id != user_id:
         return jsonify({"message": "Not authorized."}), 401
 
-    data = request.json
+    
     user_input = data.get("user_input", "").strip()
 
     if not user_input:
@@ -394,6 +403,35 @@ def list_conversations():
 
     return jsonify({"conversations": conversation_list})
 
+@bp.route("/list_student_conversations", methods=["GET"])
+@jwt_required()
+def list_student_conversations():
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type != "student":
+        return jsonify({"message": "Students only."}), 403
+    
+    user = Student.query.get(user_id)
+    
+    if not user:
+        return jsonify({"message": "User not found."}), 404
+    
+    conversations = StudentAIConversations.query.filter_by(course_id = user.course).all()
+    conversation_list = []
+    for conversation in conversations:
+        conversation_list.append(
+            {
+                "course_id": conversation.course_id,
+                "course_name": Course.query.filter_by(id=conversation.course_id).first().name,
+                "course_section_id": conversation.course_section,
+                "course_section_name": CourseSections.query.filter_by(id=conversation.course_section).first().name
+            }
+        )
+    return jsonify({"conversations": conversation_list})
 
 @bp.route("/deploy_student_llm/<string:conversation_uuid>", methods=["GET"])
 @jwt_required()
@@ -436,17 +474,26 @@ def deploy(conversation_uuid):
 
     course_id = conversation.course_id
     course_section = conversation.course_section
-    try:
-        new_student_conversation = StudentAIConversations(
-            course_id=course_id, course_section=course_section
-        )
-        db.session.add(new_student_conversation)
-        db.session.commit()
-        return jsonify({"message": "Deploy successfully"}), 200
+    
+    old_student_conversation = StudentAIConversations.query.filter_by(
+        course_id = course_id,
+        course_section=course_section
+    ).first()
+    
+    if old_student_conversation is None:
+        try:
+            new_student_conversation = StudentAIConversations(
+                course_id=course_id, course_section=course_section
+            )
+            db.session.add(new_student_conversation)
+            db.session.commit()
+            return jsonify({"message": "Deploy successfully"}), 200
 
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"message": "Deploy failed"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "Deploy failed"}), 400
+    else:
+        return jsonify({"message": "The llm of this section has already been deployed."}), 500
 
 @bp.route("/generate_feedback", methods=["POST"])
 @jwt_required()
