@@ -495,7 +495,7 @@ def generate_feedback():
             if not conversation:
                 continue
             
-            summary_prompt = "請總結以下對話的重點，幫助老師了解學生的學習狀況，如果對話是空白的，則回覆學生尚未進行對話：\n\n"
+            summary_prompt = "請總結以下對話的重點，幫助老師了解學生的學習狀況，如果對話是空白的，則回覆\"學生尚未進行對話\"，不要自己改變文字：\n\n"
             for _, sender, a, _ in conversation_history:
                 if sender == 'user':
                     summary_prompt += f"學生說: {a} "

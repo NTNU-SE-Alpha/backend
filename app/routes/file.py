@@ -212,7 +212,9 @@ def download_file(file_id):
     else:
         return jsonify({"error": "Access forbidden."}), 403
 
-    print(current_app.root_path)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+        
     file_path = os.path.join(current_app.root_path, "../",file_record.path)
     if not file_record or not os.path.exists(file_path):
         return jsonify({"error": "File not found"}), 404
