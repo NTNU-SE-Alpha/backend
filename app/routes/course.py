@@ -37,15 +37,12 @@ def get_courses():
             student = Student.query.get(user_id)
             if not student:
                 return jsonify({"message": "Teacher not found."}), 404
-
-            # 取得所有屬於該老師，且非封存的課程
-            course = Course.query.filter_by(id=student.course, archive=False).first()
-
-            # 將資料轉為 dict
-            return jsonify({"courses": course}), 200
+            courses = Course.query.filter_by(id=student.course, archive=False).all()
+            courses_data = [course.to_dict() for course in courses]
+            return jsonify({"courses": courses_data}), 200
 
         except Exception as e:
-            return jsonify({"message": "An error occurred while retrieving courses."}), 500
+            return jsonify({"message": f"An error occurred while retrieving courses. {e}"}), 500
 
 
 @bp.route("/getCourseInfo/<int:course_id>")
