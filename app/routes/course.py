@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt
-from app.models import Course, Teacher, db, CourseSections
+from app.models import Course, Teacher, db, CourseSections,Student
 from datetime import datetime
 
 bp = Blueprint("course", __name__)
@@ -9,32 +9,43 @@ bp = Blueprint("course", __name__)
 @bp.route("/courses", methods=["GET"])
 # 處理教師查詢課堂
 @jwt_required()
-def get_teacher_courses():
+def get_courses():
     # 從 JWT Token 中取得資料(claims)
     claims = get_jwt()
     user_type = claims.get("user_type")
     user_id = claims.get("user_id")
 
     # 檢查使用者是否為老師
-    if user_type != "teacher":
-        return jsonify({"message": "Access forbidden: Teachers only."}), 403
+    if user_type == "teacher":
+        try:
+            teacher = Teacher.query.get(user_id)
+            if not teacher:
+                return jsonify({"message": "Teacher not found."}), 404
 
-    try:
-        teacher = Teacher.query.get(user_id)
-        if not teacher:
-            return jsonify({"message": "Teacher not found."}), 404
+            # 取得所有屬於該老師，且非封存的課程
+            courses = Course.query.filter_by(teacher_id=teacher.id, archive=False).all()
 
-        # 取得所有屬於該老師，且非封存的課程
-        courses = Course.query.filter_by(teacher_id=teacher.id, archive=False).all()
+            # 將資料轉為 dict
+            courses_data = [course.to_dict() for course in courses]
 
-        # 將資料轉為 dict
-        courses_data = [course.to_dict() for course in courses]
+            return jsonify({"courses": courses_data}), 200
 
-        return jsonify({"courses": courses_data}), 200
+        except Exception as e:
+            return jsonify({"message": "An error occurred while retrieving courses."}), 500
+    else:
+        try:
+            student = Student.query.get(user_id)
+            if not student:
+                return jsonify({"message": "Teacher not found."}), 404
 
-    except Exception as e:
-        bp.logger.error(f"Error retrieving courses for teacher ID {user_id}: {e}")
-        return jsonify({"message": "An error occurred while retrieving courses."}), 500
+            # 取得所有屬於該老師，且非封存的課程
+            course = Course.query.filter_by(id=student.course, archive=False).first()
+
+            # 將資料轉為 dict
+            return jsonify({"courses": course}), 200
+
+        except Exception as e:
+            return jsonify({"message": "An error occurred while retrieving courses."}), 500
 
 
 @bp.route("/getCourseInfo/<int:course_id>")
