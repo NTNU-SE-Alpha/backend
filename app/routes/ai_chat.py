@@ -10,12 +10,14 @@ from app.models import (
     TeacherAIMessages,
     Course,
     CourseSections,
+    StudentAIFeedbacks,
     db,
 )
 from app.services.ai_teacher import AITeacher
 from app.services.ai_student import AIStudent
 from datetime import datetime
 import uuid
+from langchain_openai import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 
@@ -446,3 +448,159 @@ def deploy(conversation_uuid):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Deploy failed"}), 400
+
+@bp.route("/generate_feedback", methods=["POST"])
+@jwt_required()
+def generate_feedback():
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    
+    course_id = request.form.get('course_id')
+    course_section_id = request.form.get('course_section_id')
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
+
+    if not course_id:
+        return jsonify({"message": "The ID of course is required."}), 400
+    
+    if not course_section_id:
+        return jsonify({"message": "The ID of course section is required."}), 400
+    
+    student_conversation = StudentAIConversations.query.filter_by(
+        course_id = course_id,
+        course_section = course_section_id
+    ).first()
+    
+    if student_conversation is None:
+        return jsonify({"message": "The course is not deployed."}), 404
+
+    students = Student.query.filter_by(course=course_id).all()
+    
+    try:
+        for student in students:
+            conversation, conversation_history = aistudent.load_conversation_history(
+                course_id,
+                course_section_id,
+                student.id
+            )
+            
+            if not conversation:
+                continue
+            
+            summary_prompt = "請總結以下對話的重點，幫助老師了解學生的學習狀況，如果對話是空白的，則回覆學生尚未進行對話：\n\n"
+            for _, sender, a, _ in conversation_history:
+                if sender == 'user':
+                    summary_prompt += f"學生說: {a} "
+                elif sender == 'assistant':
+                    summary_prompt += f"AI 助教回: {a} \n\n"
+                # summary_prompt += f"學生: {q}\nAI 助教: {a}\n\n"
+            
+            print(summary_prompt)
+            
+            llm_summary = ChatOpenAI(
+                api_key=current_app.config["OPENAI_API_KEY"],
+                max_tokens=1500,
+                model_name="gpt-4"  # 確保使用正確的模型名稱
+            )
+            messages = [
+                SystemMessage(content="您是一位 AI 助教，請根據以下對話歷史生成一個詳細的總結，幫助老師了解學生的學習狀況。"),
+                HumanMessage(content=summary_prompt)
+            ]
+            
+            response = llm_summary(messages)
+            
+            summary = response.content.strip()
+            
+            print("\n從 LLM 收到的回應:")
+            print(summary)
+            
+            old_student_feedback = StudentAIFeedbacks.query.filter_by(
+                user_id = student.id,
+                conversation_id=student_conversation.id,
+            ).first()
+            
+            if old_student_feedback is None:
+                student_feedback = StudentAIFeedbacks(
+                    user_id = student.id,
+                    conversation_id=student_conversation.id,
+                    feedback = summary
+                )
+                
+                db.session.add(student_feedback)
+                db.session.commit()
+            else:
+                old_student_feedback.feedback = summary
+                db.session.commit()
+                
+        return jsonify({"message": "Feedback generated sucessfully."})
+        
+    except Exception as e:
+        bp.logger.error(f"Error generating feedback: {e}")
+        db.session.rollback()
+        return jsonify({"message": "An error occurred while generating the feedback"})
+    
+@bp.route("/list_feedback/<int:course_id>/<int:course_section_id>", methods=["GET"])
+@jwt_required()
+def list_feedback(course_id, course_section_id):
+    claims = get_jwt()
+    user_type = claims.get("user_type")
+    user_id = claims.get("user_id")
+    
+    if not user_type or not user_id:
+        return jsonify({"message": "Invalid token."}), 400
+
+    if user_type == "teacher":
+        user = Teacher.query.get(user_id)
+        if not user:
+            return jsonify({"message": "User not found."}), 404
+    else:
+        return jsonify({"message": "Access forbidden"}), 403
+
+    if not course_id:
+        return jsonify({"message": "The ID of course is required."}), 400
+    
+    if not course_section_id:
+        return jsonify({"message": "The ID of course section is required."}), 400
+    
+    student_conversation = StudentAIConversations.query.filter_by(
+        course_id = course_id,
+        course_section = course_section_id
+    ).first()
+    
+    if student_conversation is None:
+        return jsonify({"message": "The course is not deployed."}), 404
+
+    students = Student.query.filter_by(course=course_id).all()
+    
+    try:
+        feedback_list = []
+        for student in students:
+            student_feedback = StudentAIFeedbacks.query.filter_by(
+                user_id = student.id,
+                conversation_id=student_conversation.id,
+            ).first()
+            
+            if student_feedback is None:
+                return jsonify({"message": "Feedback for this course has not been generated yet."})
+            
+            feedback_list.append({
+                "student_name": student.name,
+                "student_id": student.id,
+                "feedback": student_feedback.feedback, 
+            })
+            
+        return jsonify(feedback_list),200 
+        
+    except Exception as e:
+        bp.logger.error(f"Error fetching feedback: {e}")
+        db.session.rollback()
+        return jsonify({"message": "An error occurred while fetching the feedback"})
+    

@@ -6,6 +6,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
 
+
 class Teacher(db.Model):
     __tablename__ = "teachers"
 
@@ -60,7 +61,9 @@ class Course(db.Model):
     archive = db.Column(db.Boolean, default=False, nullable=False)
     is_favorite = db.Column(db.Boolean, default=False)
 
-    conversations = db.relationship("TeacherAIConversations", backref="course", lazy=True)
+    conversations = db.relationship(
+        "TeacherAIConversations", backref="course", lazy=True
+    )
 
     # 將資料轉為 dict
     def to_dict(self):
@@ -122,7 +125,7 @@ class TeacherAIConversations(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey("courses.id"), nullable=False)
     course_section = db.Column(db.Integer, nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now())
+    created_at = db.Column(db.DateTime, default=datetime.now)
     summary = db.Column(db.Text, nullable=True)
 
 
@@ -134,11 +137,12 @@ class TeacherAIMessages(db.Model):
     )
     sender = db.Column(db.String(10), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.now())
+    sent_at = db.Column(db.DateTime, default=datetime.now)
 
     conversation = db.relationship(
         "TeacherAIConversations", backref=db.backref("teacher_ai_messages", lazy=True)
     )
+
 
 class StudentAIConversations(db.Model):
     __tablename__ = "student_ai_conversations"
@@ -163,11 +167,12 @@ class StudentAIMessages(db.Model):
     sender = db.Column(db.String(10), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.now())
+    sent_at = db.Column(db.DateTime, default=datetime.now)
 
     conversation = db.relationship(
         "StudentAIConversations", backref=db.backref("student_ai_messages", lazy=True)
     )
+
 
 class TeacherAIFaisses(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -203,7 +208,8 @@ class StudentGroupMessage(db.Model):
     sender = db.Column(db.String(10), nullable=False)
     room = db.Column(db.String(120), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.now())
+    sent_at = db.Column(db.DateTime, default=datetime.now)
+
 
 class GroupAudioFiles(db.Model):
     __tablename__ = "group_audio_files"
@@ -213,3 +219,13 @@ class GroupAudioFiles(db.Model):
     name = db.Column(db.String(255), nullable=False)
     path = db.Column(db.String(255), nullable=False)
     checksum = db.Column(db.String(64), nullable=False)
+
+
+class StudentAIFeedbacks(db.Model):
+    __tablename__ = "student_ai_feedbacks"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey("student_ai_conversations.id"), nullable=False
+    )
+    feedback = db.Column(db.String(600), nullable=False)
